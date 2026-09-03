@@ -130,7 +130,7 @@ function ayahAudioUrl(reciterId, surahId, ayahNum) {
 // reciter in RECITERS in turn. Reports state via callbacks so the
 // calling button can swap its icon; onError fires only once every
 // reciter has failed — at that point nothing plays.
-function playRecitation({ surahId, ayahNum, onStart, onEnd, onError }) {
+function playRecitation({ surahId, ayahNum, onStart, onDuration, onEnd, onError }) {
   if (!sharedRecitationAudio) {
     onError && onError();
     return;
@@ -161,6 +161,19 @@ function playRecitation({ surahId, ayahNum, onStart, onEnd, onError }) {
     sharedRecitationAudio.onerror = tryNext;
     onRecitationEnd = finish;
 
+    if (onDuration) {
+      // Real ayah audio's actual length — used (as an estimate, not
+      // exact per-word timing, which this single continuous file
+      // doesn't expose) to schedule proportional word-highlight
+      // timing so the karaoke effect works on the natural, fluent
+      // recitation instead of only on isolated per-word clips.
+      const reportDuration = () => {
+        if (Number.isFinite(sharedRecitationAudio.duration)) onDuration(sharedRecitationAudio.duration);
+      };
+      if (Number.isFinite(sharedRecitationAudio.duration)) reportDuration();
+      else sharedRecitationAudio.addEventListener("loadedmetadata", reportDuration, { once: true });
+    }
+
     const playPromise = sharedRecitationAudio.play();
     if (playPromise?.then) {
       playPromise.then(() => onStart && onStart(reciter)).catch(tryNext);
@@ -188,7 +201,7 @@ function stopRecitation() {
 // "listen a few times, then recall" step, where a chunk is 1-3
 // ayat. Returns a `cancel()` function so the caller (e.g. the user
 // tapping "stop" or leaving the screen) can interrupt mid-sequence.
-function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, onLoopStart, onEnd, onError }) {
+function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, onLoopStart, onAyahStart, onEnd, onError }) {
   let cancelled = false;
   let loopsDone = 0;
 
@@ -210,8 +223,10 @@ function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, onLoopSta
       // reciter fails for an ayah — so advancement must happen only
       // in onEnd (always fires) and onError must only record the
       // failure flag, never advance, or this would skip an ayah.
+      const thisAyah = ayahNum;
       playRecitation({
         surahId, ayahNum,
+        onDuration: onAyahStart ? (duration) => onAyahStart(thisAyah, duration) : undefined,
         onEnd: () => { ayahNum += 1; playNextAyah(); },
         onError: () => { sawError = true; },
       });
@@ -1264,6 +1279,58 @@ function playChunkWordsLoop(chunk, { loops = 1, rate = 1, onWordStart, onLoopSta
 
   playOneLoop();
   return () => { cancelled = true; stopWordAudio(); };
+}
+
+// Distributes a known total duration across a list of relative
+// "weights" (here, transliterated-word lengths as a rough proxy for
+// spoken duration), returning each item's estimated START offset in
+// seconds. Pure and independently reasoned-about on purpose.
+function computeWordTimeOffsets(weights, durationSec) {
+  const total = weights.reduce((a, b) => a + b, 0) || 1;
+  let acc = 0;
+  return weights.map((w) => {
+    const start = (acc / total) * durationSec;
+    acc += w;
+    return start;
+  });
+}
+
+// Plays the chunk's real, continuous ayah recording(s) — the same
+// natural-paced audio used everywhere else in the app, not the
+// slower isolated per-word clips — while ESTIMATING when each word
+// begins (proportional to word length, scaled to each ayah's real
+// measured duration) to drive the same word-highlight UI. This
+// can't be frame-perfect the way playChunkWordsLoop's exact per-
+// word timing is, but it keeps the natural, fluent recitation pace
+// intact, which is the whole point of offering it as "Normal".
+function playChunkContinuousWithEstimatedHighlight(chunk, translitWords, { loops = 1, onWordStart, onLoopStart, onEnd, onError } = {}) {
+  const wordCountByAyah = chunk.ayat.map((a) => a.ar.trim().split(/\s+/).length);
+  const ayahWordOffset = [];
+  { let acc = 0; for (const n of wordCountByAyah) { ayahWordOffset.push(acc); acc += n; } }
+  const weights = translitWords.map((w) => w.length || 1);
+
+  let timeouts = [];
+  const clearAll = () => { timeouts.forEach(clearTimeout); timeouts = []; };
+
+  const cancelRecitation = playRecitationRange({
+    surahId: chunk.surahId, ayahStart: chunk.ayahStart, ayahEnd: chunk.ayahEnd, loops,
+    onLoopStart: (n) => { clearAll(); onLoopStart && onLoopStart(n); },
+    onAyahStart: (ayahNum, duration) => {
+      const ayahIdx = ayahNum - chunk.ayahStart;
+      if (ayahIdx < 0 || ayahIdx >= wordCountByAyah.length || !Number.isFinite(duration)) return;
+      const start = ayahWordOffset[ayahIdx];
+      const count = wordCountByAyah[ayahIdx];
+      const offsets = computeWordTimeOffsets(weights.slice(start, start + count), duration);
+      offsets.forEach((t, i) => {
+        const globalIdx = start + i;
+        timeouts.push(setTimeout(() => onWordStart && onWordStart(globalIdx), Math.max(0, t * 1000)));
+      });
+    },
+    onEnd: () => { clearAll(); onEnd && onEnd(); },
+    onError: () => { clearAll(); onError && onError(); },
+  });
+
+  return () => { clearAll(); cancelRecitation(); };
 }
 
 function buildChunksForSurah(surahId) {
@@ -3912,7 +3979,15 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
   const [phase, setPhase] = useState("translation"); // translation -> listen -> recall -> isolateReplay -> chainRecall -> done
   const [loopsTarget, setLoopsTarget] = useState(defaultLoops);
   const [loopsCompleted, setLoopsCompleted] = useState(0);
-  const [playbackRate, setPlaybackRate] = useState(1); // 1 = normal; slower options for word-by-word listening
+  // "normal" plays the real continuous ayah recording (natural,
+  // fluent pace — the same audio the rest of the app uses), with
+  // word-highlight timing ESTIMATED proportionally from each word's
+  // length, since a single continuous file has no per-word markers.
+  // "slower" plays real isolated per-word clips back to back — an
+  // inherently slower, more deliberate pace (that's what per-word
+  // recordings sound like) but with EXACT highlight sync, since we
+  // know precisely when each individual clip starts.
+  const [speedMode, setSpeedMode] = useState("normal");
   const [playingLoops, setPlayingLoops] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -3935,14 +4010,21 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
     setAudioError(false);
     setLoopsCompleted(0);
     setPlayingLoops(true);
-    cancelPlaybackRef.current = playChunkWordsLoop(chunk, {
-      loops: loopsTarget,
-      rate: playbackRate,
-      onWordStart: (i) => setActiveWordIdx(i),
-      onLoopStart: (n) => setLoopsCompleted(n - 1),
-      onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); setActiveWordIdx(null); },
-      onError: () => { setPlayingLoops(false); setAudioError(true); setActiveWordIdx(null); },
-    });
+    cancelPlaybackRef.current = speedMode === "slower"
+      ? playChunkWordsLoop(chunk, {
+          loops: loopsTarget,
+          onWordStart: (i) => setActiveWordIdx(i),
+          onLoopStart: (n) => setLoopsCompleted(n - 1),
+          onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); setActiveWordIdx(null); },
+          onError: () => { setPlayingLoops(false); setAudioError(true); setActiveWordIdx(null); },
+        })
+      : playChunkContinuousWithEstimatedHighlight(chunk, chunkTranslitWords, {
+          loops: loopsTarget,
+          onWordStart: (i) => setActiveWordIdx(i),
+          onLoopStart: (n) => setLoopsCompleted(n - 1),
+          onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); setActiveWordIdx(null); },
+          onError: () => { setPlayingLoops(false); setAudioError(true); setActiveWordIdx(null); },
+        });
   }
 
   // The play button doubles as pause: tapping it again mid-playback
@@ -4052,10 +4134,11 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
               <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 14 }}>
                 Speed:
                 <span style={{ marginLeft: 8 }}>
-                  {[{ label: "Slower", value: 0.7 }, { label: "Normal", value: 1 }].map((opt) => (
-                    <button key={opt.label} onClick={() => setPlaybackRate(opt.value)} style={{
-                      ...mono, fontSize: 11, padding: "3px 8px", marginLeft: 4, borderRadius: 8, cursor: "pointer",
-                      background: playbackRate === opt.value ? T.gold : T.inkRaised, color: playbackRate === opt.value ? "#1A1305" : T.textLo,
+                  {[{ label: "Normal", value: "normal" }, { label: "Slower", value: "slower" }].map((opt) => (
+                    <button key={opt.value} disabled={playingLoops} onClick={() => setSpeedMode(opt.value)} style={{
+                      ...mono, fontSize: 11, padding: "3px 8px", marginLeft: 4, borderRadius: 8,
+                      cursor: playingLoops ? "default" : "pointer", opacity: playingLoops ? 0.6 : 1,
+                      background: speedMode === opt.value ? T.gold : T.inkRaised, color: speedMode === opt.value ? "#1A1305" : T.textLo,
                       border: `1px solid ${T.inkLine}`,
                     }}>{opt.label}</button>
                   ))}
