@@ -7,6 +7,7 @@ import {
   countDue,
 } from "./srs.js";
 import { matchRecall, extractBrokenPhrase } from "./recallMatch.js";
+import { transliterate } from "./transliterate.js";
 
 /* ============================================================
    FONTS (loaded via link in index — for artifact preview we
@@ -1623,7 +1624,7 @@ function ArabicChunks({ chunks, revealed, onTap, size = 30, audioRef, ayahNum, w
   );
 }
 
-function ArabicCenterpiece({ ar, small }) {
+function ArabicCenterpiece({ ar, small, translit }) {
   return (
     <div style={{
       background: `linear-gradient(180deg, ${T.parchment}, ${T.parchmentDim})`,
@@ -1633,6 +1634,11 @@ function ArabicCenterpiece({ ar, small }) {
     }}>
       <div style={{ position: "absolute", top: 8, left: 8, right: 8, bottom: 8, border: `1px solid rgba(201,164,92,0.35)`, borderRadius: 12, pointerEvents: "none" }} />
       <div dir="rtl" style={{ ...arabicFont, fontSize: small ? 26 : 32, color: "#26201a", lineHeight: 2 }}>{ar}</div>
+      {translit && (
+        <div style={{ ...mono, fontSize: small ? 12 : 13.5, color: "#6b5a3d", marginTop: 10, lineHeight: 1.6, letterSpacing: 0.2 }}>
+          {translit}
+        </div>
+      )}
     </div>
   );
 }
@@ -3830,7 +3836,9 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
   const [audioError, setAudioError] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [failCount, setFailCount] = useState(0);
+  const [showTranslit, setShowTranslit] = useState(true); // on by default, per explicit request — toggleable for those who don't want it
   const cancelPlaybackRef = React.useRef(null);
+  const chunkTranslit = useMemo(() => transliterate(chunk.text), [chunk.text]);
 
   React.useEffect(() => () => cancelPlaybackRef.current?.(), []);
 
@@ -3844,6 +3852,20 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
       onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); },
       onError: () => { setPlayingLoops(false); setAudioError(true); },
     });
+  }
+
+  // The play button doubles as pause: tapping it again mid-playback
+  // cancels the in-flight sequence (this was previously impossible —
+  // the button was `disabled` while playing, so it did nothing).
+  // Pausing stops cleanly rather than resuming mid-ayah; tapping
+  // play again restarts the full loop count from the top.
+  function pauseLoops() {
+    cancelPlaybackRef.current?.();
+    setPlayingLoops(false);
+  }
+  function toggleLoops() {
+    if (playingLoops) pauseLoops();
+    else startLoops();
   }
 
   function handleRecallResult(result) {
@@ -3909,7 +3931,12 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
           <>
             <StepLabel n={2} text="Listen" />
             <div style={{ marginTop: 14 }}>
-              <ArabicCenterpiece ar={chunk.text} />
+              <ArabicCenterpiece ar={chunk.text} translit={showTranslit ? chunkTranslit : null} />
+            </div>
+            <div style={{ marginTop: 8, textAlign: "center" }}>
+              <GhostButton onClick={() => setShowTranslit((v) => !v)}>
+                {showTranslit ? "Hide" : "Show"} English transliteration
+              </GhostButton>
             </div>
             <div style={{ marginTop: 18, textAlign: "center" }}>
               <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 10 }}>
@@ -3925,12 +3952,12 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
                   </span>
                 )}
               </div>
-              <button onClick={startLoops} disabled={playingLoops} style={{
-                width: 64, height: 64, borderRadius: 99, border: "none", cursor: playingLoops ? "default" : "pointer",
+              <button onClick={toggleLoops} style={{
+                width: 64, height: 64, borderRadius: 99, border: "none", cursor: "pointer",
                 background: audioError ? "transparent" : `linear-gradient(135deg, ${T.gold}, #B5893F)`,
                 borderColor: audioError ? T.danger : T.gold,
                 display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
+              }} aria-label={playingLoops ? "Pause" : "Play"}>
                 {audioError ? <RetryIcon color={T.danger} size={22} /> : <PlayPauseIcon playing={playingLoops} size={22} />}
               </button>
               <div style={{ ...bodySans, fontSize: 12, color: audioError ? T.danger : T.textFaint, marginTop: 10 }}>
