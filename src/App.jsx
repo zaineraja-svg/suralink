@@ -1999,7 +1999,12 @@ export default function QuranUnderstandingApp() {
         <FontLoader />
         <div style={{ padding: "60px 26px 0" }}>
           <GeoDivider />
-          <div style={{ ...displaySerif, fontSize: 28, marginTop: 18, color: T.textHi, fontStyle: "italic" }}>
+          {onboardStep === 0 && (
+            <div style={{ ...bodySans, fontSize: 11, letterSpacing: 2, color: T.gold, textTransform: "uppercase", marginTop: 14 }}>
+              SuraLink
+            </div>
+          )}
+          <div style={{ ...displaySerif, fontSize: 28, marginTop: 10, color: T.textHi, fontStyle: "italic" }}>
             {onboardStep === 0 ? "Before we begin" : ""}
           </div>
           <div style={{ display: "flex", gap: 5, margin: "18px 0 26px" }}>
