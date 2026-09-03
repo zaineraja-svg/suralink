@@ -2032,6 +2032,7 @@ export default function QuranUnderstandingApp() {
 
   if (view === "memorizeLearn") {
     return <MemorizeLearnScreen
+      key={memorizeSource.chunk.__itemId}
       chunk={memorizeSource.chunk}
       priorSessionText={memorizeSessionChunks.join(" ")}
       defaultLoops={memorizeDefaultLoops}
@@ -4119,10 +4120,10 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
             </div>
             <div style={{ marginTop: 18, textAlign: "center" }}>
               <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 10 }}>
-                Loop count: {loopsTarget} {!playingLoops && loopsCompleted === 0 && (
+                Loop count: {loopsTarget} {!playingLoops && (
                   <span style={{ marginLeft: 8 }}>
                     {[1, 3, 5].map((n) => (
-                      <button key={n} onClick={() => setLoopsTarget(n)} style={{
+                      <button key={n} onClick={() => { setLoopsTarget(n); setLoopsCompleted(0); }} style={{
                         ...mono, fontSize: 11, padding: "3px 8px", marginLeft: 4, borderRadius: 8, cursor: "pointer",
                         background: loopsTarget === n ? T.gold : T.inkRaised, color: loopsTarget === n ? "#1A1305" : T.textLo,
                         border: `1px solid ${T.inkLine}`,
