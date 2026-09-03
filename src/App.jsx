@@ -4715,45 +4715,92 @@ function PrayerQiblaScreen({ goBack }) {
     return () => clearInterval(id);
   }, []);
 
-  // Best-effort live compass. Desktop browsers and many Android
-  // setups simply never fire this event — that's fine, the screen
-  // still works with the static bearing-from-North reading below.
-  // iOS Safari requires a user gesture to grant motion/orientation
-  // permission, so this is wired to the same button as location.
+  // Live compass, tried in order of how reliable each source
+  // actually is for a real true-north heading:
+  //  1. AbsoluteOrientationSensor (Generic Sensor API) — the modern,
+  //     standards-track API, and the one Android Chrome supports
+  //     most consistently. This is new here; it wasn't tried before,
+  //     and on many Android phones it's the ONLY thing that actually
+  //     reports a usable heading — plain deviceorientation events
+  //     often fire with `absolute: false` on Android, meaning the
+  //     previous code correctly refused to trust them (unreliable,
+  //     drifts from whatever direction the phone started facing)
+  //     but had nothing better to fall back to.
+  //  2. deviceorientationabsolute / webkitCompassHeading — iOS
+  //     Safari and some Android browsers.
+  //  3. Otherwise: the static "face North, turn X°" reading stays.
   const [compassDenied, setCompassDenied] = useState(false);
+  const [compassSource, setCompassSource] = useState(null); // "sensor" | "event" | null — which method is actually feeding the arrow
+  const sensorRef = React.useRef(null);
+
+  async function tryAbsoluteOrientationSensor() {
+    if (typeof AbsoluteOrientationSensor === "undefined") return false;
+    try {
+      if (navigator.permissions?.query) {
+        const results = await Promise.all(
+          ["accelerometer", "magnetometer", "gyroscope"].map((name) =>
+            navigator.permissions.query({ name }).catch(() => ({ state: "granted" }))
+          )
+        );
+        if (results.some((r) => r.state === "denied")) return false;
+      }
+      const sensor = new AbsoluteOrientationSensor({ frequency: 10, referenceFrame: "device" });
+      sensor.addEventListener("reading", () => {
+        const [x, y, z, w] = sensor.quaternion;
+        // Yaw from quaternion (ZYX Euler convention), converted from
+        // the sensor's counter-clockwise-from-device-X-axis system
+        // to a clockwise-from-North compass bearing. If this ever
+        // reads backwards or offset on a real device, the fix is a
+        // sign/offset tweak here, not a different approach.
+        const yawRad = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+        const deg = (360 - ((yawRad * 180) / Math.PI + 360) % 360) % 360;
+        setHeading(deg);
+        setHeadingAvailable(true);
+        setCompassSource("sensor");
+      });
+      sensor.addEventListener("error", () => { sensorRef.current = null; });
+      sensor.start();
+      sensorRef.current = sensor;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function enableCompass() {
     setCompassDenied(false);
-    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-      // iOS Safari: must be requested from within a user-gesture
-      // handler, and can be re-requested — this is now wired to its
-      // own retry button (not just the very first "Enable location"
-      // tap), since a stacked geolocation+motion permission request
-      // can silently lose the second prompt on some devices.
-      DeviceOrientationEvent.requestPermission().then((res) => {
-        if (res === "granted") {
-          window.addEventListener("deviceorientationabsolute", onOrientation, true);
-          window.addEventListener("deviceorientation", onOrientation, true);
-        } else {
-          setCompassDenied(true);
-        }
-      }).catch(() => setCompassDenied(true));
-    } else {
-      // Android/desktop: no explicit permission API — listen on both
-      // event names, since some browsers only fire the "absolute"
-      // variant with a true-north-referenced heading, and a plain
-      // "deviceorientation" alpha can be relative to whatever
-      // direction the device happened to be facing on page load.
-      window.addEventListener("deviceorientationabsolute", onOrientation, true);
-      window.addEventListener("deviceorientation", onOrientation, true);
-    }
+    tryAbsoluteOrientationSensor().then((started) => {
+      if (started) return;
+      // Fall back to the older orientation-event APIs.
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+        // iOS Safari: must be requested from within a user-gesture
+        // handler, and can be re-requested — this is wired to its
+        // own retry button (not just the very first "Enable location"
+        // tap), since a stacked geolocation+motion permission request
+        // can silently lose the second prompt on some devices.
+        DeviceOrientationEvent.requestPermission().then((res) => {
+          if (res === "granted") {
+            window.addEventListener("deviceorientationabsolute", onOrientation, true);
+            window.addEventListener("deviceorientation", onOrientation, true);
+          } else {
+            setCompassDenied(true);
+          }
+        }).catch(() => setCompassDenied(true));
+      } else {
+        window.addEventListener("deviceorientationabsolute", onOrientation, true);
+        window.addEventListener("deviceorientation", onOrientation, true);
+      }
+    });
   }
   function onOrientation(e) {
     const h = e.webkitCompassHeading ?? (e.absolute && e.alpha != null ? 360 - e.alpha : null);
+    if (h != null) setCompassSource("event");
     if (h != null) { setHeading(h); setHeadingAvailable(true); }
   }
   React.useEffect(() => () => {
     window.removeEventListener("deviceorientationabsolute", onOrientation, true);
     window.removeEventListener("deviceorientation", onOrientation, true);
+    try { sensorRef.current?.stop(); } catch {}
   }, []);
 
   const bearing = coords ? qiblaBearing(coords.lat, coords.lon) : null;
