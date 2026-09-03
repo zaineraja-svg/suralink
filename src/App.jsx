@@ -4294,6 +4294,17 @@ function formatClock(hhmm) {
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+// DD-MM-YYYY, per Aladhan's date-parameterized endpoint — built
+// from the DEVICE's own local calendar date, not left to default to
+// whatever date Aladhan's server happens to think it is. That
+// distinction matters right around midnight in any timezone that
+// isn't the API's own.
+function localDateKey(d = new Date()) {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}-${mm}-${d.getFullYear()}`;
+}
+
 // A short list of common cities as a manual fallback when browser
 // geolocation is denied or unavailable — not a replacement for real
 // GPS (it's city-level, not exact), but enough to actually use the
@@ -4350,12 +4361,21 @@ function PrayerQiblaScreen({ goBack }) {
     );
   }
 
-  // Fetch prayer times once we have coordinates.
+  // `dateKey` is the device's own local calendar date — bumping it
+  // (either right away when coords change, or when the periodic
+  // check below notices the day has rolled over) is what re-triggers
+  // the fetch effect, so "today" always means today on THIS device,
+  // not whatever day the request happens to land on Aladhan's server.
+  const [dateKey, setDateKey] = useState(localDateKey());
+
+  // Fetch prayer times whenever we have coordinates, and again
+  // whenever the local date changes — explicitly requesting that
+  // date from Aladhan rather than trusting its own default "today".
   React.useEffect(() => {
     if (!coords) return;
     let cancelled = false;
     setTimingsError(false);
-    fetch(`https://api.aladhan.com/v1/timings?latitude=${coords.lat}&longitude=${coords.lon}&method=2`)
+    fetch(`https://api.aladhan.com/v1/timings/${dateKey}?latitude=${coords.lat}&longitude=${coords.lon}&method=2`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -4364,7 +4384,21 @@ function PrayerQiblaScreen({ goBack }) {
       })
       .catch(() => { if (!cancelled) setTimingsError(true); });
     return () => { cancelled = true; };
-  }, [coords]);
+  }, [coords, dateKey]);
+
+  // If this screen is left open across midnight, notice the local
+  // date has changed and refetch — otherwise it would keep showing
+  // yesterday's times until the user manually leaves and returns.
+  // Checked every minute rather than scheduled exactly at midnight:
+  // simpler, and correct even if the device's clock/timezone shifts
+  // (e.g. travel) while the screen is open.
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      const today = localDateKey();
+      setDateKey((prev) => (prev === today ? prev : today));
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Best-effort live compass. Desktop browsers and many Android
   // setups simply never fire this event — that's fine, the screen
