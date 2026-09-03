@@ -242,7 +242,11 @@ function wordAudioUrl(surahId, ayahNum, wordNum) {
 }
 
 // Plays words [startWord..endWord] of a given ayah back-to-back.
-function playWordRange({ surahId, ayahNum, startWord, endWord, onStart, onEnd, onError }) {
+// `rate` is the HTML Audio element's own playbackRate (1 = normal,
+// <1 = slower, >1 = faster) — this changes tempo, not pitch quality,
+// via the browser's built-in resampling, applied to the same real
+// recitation clips (not a different, synthesized source).
+function playWordRange({ surahId, ayahNum, startWord, endWord, rate = 1, onStart, onEnd, onError }) {
   if (!sharedWordAudio) {
     onError && onError();
     return;
@@ -257,6 +261,7 @@ function playWordRange({ surahId, ayahNum, startWord, endWord, onStart, onEnd, o
       return;
     }
     sharedWordAudio.src = wordAudioUrl(surahId, ayahNum, word);
+    sharedWordAudio.playbackRate = rate;
 
     const finish = () => {
       if (onWordAudioEnd === finish) onWordAudioEnd = null;
@@ -1227,7 +1232,7 @@ function playIsolatedWords(chunk, brokenIndices, { onEnd, onError } = {}) {
 // as each word begins, which is what lets the UI highlight the
 // word currently being recited in sync with real audio, rather
 // than a rough time-based guess.
-function playChunkWordsLoop(chunk, { loops = 1, onWordStart, onLoopStart, onEnd, onError } = {}) {
+function playChunkWordsLoop(chunk, { loops = 1, rate = 1, onWordStart, onLoopStart, onEnd, onError } = {}) {
   const meta = buildFlatWordMeta(chunk);
   let cancelled = false;
   let loopsDone = 0;
@@ -1249,7 +1254,7 @@ function playChunkWordsLoop(chunk, { loops = 1, onWordStart, onLoopStart, onEnd,
       const { ayahNum, pos } = meta[idx];
       onWordStart && onWordStart(idx);
       playWordRange({
-        surahId: chunk.surahId, ayahNum, startWord: pos, endWord: pos,
+        surahId: chunk.surahId, ayahNum, startWord: pos, endWord: pos, rate,
         onEnd: () => { idx += 1; playNext(); },
         onError: () => { sawError = true; },
       });
@@ -3907,6 +3912,7 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
   const [phase, setPhase] = useState("translation"); // translation -> listen -> recall -> isolateReplay -> chainRecall -> done
   const [loopsTarget, setLoopsTarget] = useState(defaultLoops);
   const [loopsCompleted, setLoopsCompleted] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1); // 1 = normal; slower options for word-by-word listening
   const [playingLoops, setPlayingLoops] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -3931,6 +3937,7 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
     setPlayingLoops(true);
     cancelPlaybackRef.current = playChunkWordsLoop(chunk, {
       loops: loopsTarget,
+      rate: playbackRate,
       onWordStart: (i) => setActiveWordIdx(i),
       onLoopStart: (n) => setLoopsCompleted(n - 1),
       onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); setActiveWordIdx(null); },
@@ -4041,6 +4048,18 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
                     ))}
                   </span>
                 )}
+              </div>
+              <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 14 }}>
+                Speed:
+                <span style={{ marginLeft: 8 }}>
+                  {[{ label: "Slower", value: 0.7 }, { label: "Normal", value: 1 }].map((opt) => (
+                    <button key={opt.label} onClick={() => setPlaybackRate(opt.value)} style={{
+                      ...mono, fontSize: 11, padding: "3px 8px", marginLeft: 4, borderRadius: 8, cursor: "pointer",
+                      background: playbackRate === opt.value ? T.gold : T.inkRaised, color: playbackRate === opt.value ? "#1A1305" : T.textLo,
+                      border: `1px solid ${T.inkLine}`,
+                    }}>{opt.label}</button>
+                  ))}
+                </span>
               </div>
               <button onClick={toggleLoops} style={{
                 width: 64, height: 64, borderRadius: 99, border: "none", cursor: "pointer",
