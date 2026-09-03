@@ -3931,6 +3931,9 @@ function RecallInput({ expectedText, onResult }) {
         <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo, marginTop: 10 }}>
           {listening ? "Listening… tap to stop" : "Tap and recite it aloud"}
         </div>
+        <div style={{ ...bodySans, fontSize: 10.5, color: T.textFaint, marginTop: 6, lineHeight: 1.4 }}>
+          Uses your microphone only to check what you recited against the real text — nothing is recorded, saved, or sent anywhere beyond that one check.
+        </div>
         {speechError && (
           <div style={{ ...bodySans, fontSize: 11.5, color: T.danger, marginTop: 8 }}>{speechError}</div>
         )}
