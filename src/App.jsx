@@ -4660,12 +4660,30 @@ function PrayerQiblaScreen({ goBack }) {
   // still works with the static bearing-from-North reading below.
   // iOS Safari requires a user gesture to grant motion/orientation
   // permission, so this is wired to the same button as location.
+  const [compassDenied, setCompassDenied] = useState(false);
   function enableCompass() {
+    setCompassDenied(false);
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      // iOS Safari: must be requested from within a user-gesture
+      // handler, and can be re-requested — this is now wired to its
+      // own retry button (not just the very first "Enable location"
+      // tap), since a stacked geolocation+motion permission request
+      // can silently lose the second prompt on some devices.
       DeviceOrientationEvent.requestPermission().then((res) => {
-        if (res === "granted") window.addEventListener("deviceorientation", onOrientation, true);
-      }).catch(() => {});
+        if (res === "granted") {
+          window.addEventListener("deviceorientationabsolute", onOrientation, true);
+          window.addEventListener("deviceorientation", onOrientation, true);
+        } else {
+          setCompassDenied(true);
+        }
+      }).catch(() => setCompassDenied(true));
     } else {
+      // Android/desktop: no explicit permission API — listen on both
+      // event names, since some browsers only fire the "absolute"
+      // variant with a true-north-referenced heading, and a plain
+      // "deviceorientation" alpha can be relative to whatever
+      // direction the device happened to be facing on page load.
+      window.addEventListener("deviceorientationabsolute", onOrientation, true);
       window.addEventListener("deviceorientation", onOrientation, true);
     }
   }
@@ -4673,7 +4691,10 @@ function PrayerQiblaScreen({ goBack }) {
     const h = e.webkitCompassHeading ?? (e.absolute && e.alpha != null ? 360 - e.alpha : null);
     if (h != null) { setHeading(h); setHeadingAvailable(true); }
   }
-  React.useEffect(() => () => window.removeEventListener("deviceorientation", onOrientation, true), []);
+  React.useEffect(() => () => {
+    window.removeEventListener("deviceorientationabsolute", onOrientation, true);
+    window.removeEventListener("deviceorientation", onOrientation, true);
+  }, []);
 
   const bearing = coords ? qiblaBearing(coords.lat, coords.lon) : null;
   const distanceKm = coords ? Math.round(haversineKm(coords.lat, coords.lon, KAABA_LAT, KAABA_LON)) : null;
@@ -4769,9 +4790,19 @@ function PrayerQiblaScreen({ goBack }) {
               <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 4 }}>
                 {headingAvailable
                   ? "The arrow points at the Kaaba as you move your phone."
-                  : `Your device doesn't expose a live compass here — face North, then turn ${Math.round(bearing)}° clockwise.`}
+                  : `Face North, then turn ${Math.round(bearing)}° clockwise.`}
                 {" "}· {distanceKm.toLocaleString()} km to Makkah
               </div>
+              {!headingAvailable && (
+                <div style={{ marginTop: 12 }}>
+                  <GhostButton onClick={enableCompass}>Enable live compass</GhostButton>
+                  {compassDenied && (
+                    <div style={{ ...bodySans, fontSize: 11, color: T.danger, marginTop: 8, lineHeight: 1.4 }}>
+                      Motion/orientation access was denied. Allow it in your browser's site settings for this page, then tap again — or your device may just not support a live compass in the browser, in which case the manual reading above still works.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Prayer times */}
