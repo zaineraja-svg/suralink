@@ -1,4 +1,12 @@
 import React, { useState, useMemo, useCallback } from "react";
+import {
+  createMemorizationItem,
+  applyReviewResult,
+  isDue,
+  sortByMostOverdue,
+  countDue,
+} from "./srs.js";
+import { matchRecall, extractBrokenPhrase } from "./recallMatch.js";
 
 /* ============================================================
    FONTS (loaded via link in index — for artifact preview we
@@ -171,6 +179,47 @@ function stopRecitation() {
   if (sharedRecitationAudio && !sharedRecitationAudio.paused) {
     sharedRecitationAudio.pause();
   }
+}
+
+// Plays a contiguous range of ayat back-to-back (reusing
+// playRecitation per-ayah — no separate audio pipeline), optionally
+// looping the whole range multiple times. Used by memorization's
+// "listen a few times, then recall" step, where a chunk is 1-3
+// ayat. Returns a `cancel()` function so the caller (e.g. the user
+// tapping "stop" or leaving the screen) can interrupt mid-sequence.
+function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, onLoopStart, onEnd, onError }) {
+  let cancelled = false;
+  let loopsDone = 0;
+
+  function playOneLoop() {
+    if (cancelled) return;
+    onLoopStart && onLoopStart(loopsDone + 1);
+    let ayahNum = ayahStart;
+    let sawError = false;
+    const playNextAyah = () => {
+      if (cancelled) return;
+      if (ayahNum > ayahEnd) {
+        loopsDone += 1;
+        if (sawError) { onError && onError(); return; }
+        if (loopsDone >= loops) { onEnd && onEnd(); return; }
+        playOneLoop();
+        return;
+      }
+      // Note: playRecitation calls BOTH onEnd and onError when every
+      // reciter fails for an ayah — so advancement must happen only
+      // in onEnd (always fires) and onError must only record the
+      // failure flag, never advance, or this would skip an ayah.
+      playRecitation({
+        surahId, ayahNum,
+        onEnd: () => { ayahNum += 1; playNextAyah(); },
+        onError: () => { sawError = true; },
+      });
+    };
+    playNextAyah();
+  }
+
+  playOneLoop();
+  return () => { cancelled = true; stopRecitation(); };
 }
 
 /* ============================================================
@@ -1117,6 +1166,92 @@ const AYAT = {
 // dedicated recording on this source, so it has none here — see
 // SALAH_AUDIO_LABEL usage.
 const SALAH_AUDIO_LABEL = "Hisn al-Muslim recitation";
+
+/* ============================================================
+   MEMORIZATION — chunk builder
+   Groups a surah's ayat into fixed-size chunks (1-3 ayat each,
+   per the chunking requirement) for the Learn flow. Pure function
+   of AYAT data — no state, easy to reason about independent of the
+   scheduler (srs.js) or the matching module (recallMatch.js).
+   ============================================================ */
+const MEMORIZE_CHUNK_SIZE = 3;
+
+// Flat, ordered list of { ayahNum, pos } — one entry per word across
+// the whole chunk, in the same order recallMatch.matchRecall's
+// tokenizer produces refWords (whitespace-split, ayah by ayah, in
+// order). This is what lets a brokenIndices[] from matchRecall map
+// straight back to "which real word, in which real ayah" for the
+// isolated-error-replay step, reusing the same per-word Quran audio
+// (playWordRange) the Discover-it tap feature already uses.
+function buildFlatWordMeta(chunk) {
+  const meta = [];
+  for (const ayah of chunk.ayat) {
+    const words = ayah.ar.trim().split(/\s+/);
+    words.forEach((_, i) => meta.push({ ayahNum: ayah.n, pos: i + 1 }));
+  }
+  return meta;
+}
+
+// Plays only the broken words (by global chunk-word index) back to
+// back, each via its own real per-word clip — the "only replay the
+// specific broken portion" error-isolation step. Chains across ayah
+// boundaries by grouping consecutive same-ayah indices into single
+// playWordRange calls, falling back to single-word calls elsewhere.
+function playIsolatedWords(chunk, brokenIndices, { onEnd, onError } = {}) {
+  const meta = buildFlatWordMeta(chunk);
+  const positions = brokenIndices.map((i) => meta[i]).filter(Boolean);
+  if (positions.length === 0) { onEnd && onEnd(); return () => {}; }
+
+  let idx = 0;
+  let cancelled = false;
+  let sawError = false;
+  const playNext = () => {
+    if (cancelled) return;
+    if (idx >= positions.length) { onEnd && onEnd(); if (sawError) onError && onError(); return; }
+    const { ayahNum, pos } = positions[idx];
+    playWordRange({
+      surahId: chunk.surahId, ayahNum, startWord: pos, endWord: pos,
+      onEnd: () => { idx += 1; playNext(); },
+      onError: () => { sawError = true; },
+    });
+  };
+  playNext();
+  return () => { cancelled = true; stopWordAudio(); };
+}
+
+function buildChunksForSurah(surahId) {
+  const ayat = AYAT[surahId];
+  if (!ayat) return [];
+  const chunks = [];
+  for (let i = 0; i < ayat.length; i += MEMORIZE_CHUNK_SIZE) {
+    const slice = ayat.slice(i, i + MEMORIZE_CHUNK_SIZE);
+    chunks.push({
+      surahId,
+      ayahStart: slice[0].n,
+      ayahEnd: slice[slice.length - 1].n,
+      ayat: slice,
+      text: slice.map((a) => a.ar).join(" "),
+    });
+  }
+  return chunks;
+}
+
+// Rebuilds a full chunk object (ayat + text) from a saved
+// MemorizationItem — items only persist surahId + ayahRange (the
+// data model from the spec), not the text itself, so the Review
+// flow reconstructs it from AYAT on demand rather than duplicating
+// content into the item.
+function chunkForMemItem(item) {
+  const ayat = AYAT[item.surahId];
+  if (!ayat) return null;
+  const [start, end] = item.ayahRange;
+  const slice = ayat.filter((a) => a.n >= start && a.n <= end);
+  if (slice.length === 0) return null;
+  return {
+    surahId: item.surahId, ayahStart: start, ayahEnd: end, ayat: slice,
+    text: slice.map((a) => a.ar).join(" "), __itemId: item.id,
+  };
+}
 // Per-word audio strategy for salah phrases: each word below also
 // occurs as ordinary Quran vocabulary somewhere, so real, verified,
 // genuinely word-isolated recitation is available via the same
@@ -1521,6 +1656,40 @@ export default function QuranUnderstandingApp() {
     bookmarks: new Set(),
   });
 
+  // Memorization: MemorizationItems keyed by "surahId:start-end", plus
+  // a flat session log (per the spec's MemorizationSession — one
+  // entry per drilled attempt, pass/fail + timestamp). The scheduler
+  // itself (srs.js) is a pure module with no knowledge of this
+  // state shape; this is just where its inputs/outputs get stored.
+  const [memorization, setMemorization] = useState({ items: {}, sessions: [] });
+  const [memorizeSource, setMemorizeSource] = useState(null); // { surahId } | { surahId, chunk }
+  const [memorizeSessionChunks, setMemorizeSessionChunks] = useState([]); // chained chunk texts learned THIS sitting
+  const [memorizeDefaultLoops, setMemorizeDefaultLoops] = useState(5); // user-adjustable, per spec
+
+  function getOrCreateMemItem(surahId, ayahStart, ayahEnd) {
+    const id = `${surahId}:${ayahStart}-${ayahEnd}`;
+    const existing = memorization.items[id];
+    if (existing) return existing;
+    const fresh = createMemorizationItem({ surahId, ayahStart, ayahEnd });
+    setMemorization((m) => ({ ...m, items: { ...m.items, [id]: fresh } }));
+    return fresh;
+  }
+
+  function recordMemResult(itemId, result) {
+    setMemorization((m) => {
+      const item = m.items[itemId];
+      if (!item) return m;
+      const updated = applyReviewResult(item, result);
+      return {
+        items: { ...m.items, [itemId]: updated },
+        sessions: [...m.sessions, { itemId, result, timestamp: Date.now() }],
+      };
+    });
+  }
+
+  const memItemsList = useMemo(() => Object.values(memorization.items), [memorization.items]);
+  const dueMemCount = useMemo(() => countDue(memItemsList), [memItemsList]);
+
   const [currentSurah, setCurrentSurah] = useState(1);
   const [currentAyahIdx, setCurrentAyahIdx] = useState(0);
   const [lessonSource, setLessonSource] = useState(null); // {type:'surah'|'salah', ...}
@@ -1694,6 +1863,45 @@ export default function QuranUnderstandingApp() {
     return <PrayerQiblaScreen goBack={goBack} />;
   }
 
+  if (view === "memorizeSurahList") {
+    return <MemorizeSurahListScreen items={memorization.items} onBack={goBack}
+      onPickSurah={(surahId) => { setMemorizeSource({ surahId }); goTo("memorizeChunkList"); }} />;
+  }
+
+  if (view === "memorizeChunkList") {
+    return <MemorizeChunkListScreen surahId={memorizeSource.surahId} items={memorization.items} now={Date.now()} onBack={goBack}
+      onPickChunk={(chunk) => {
+        const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
+        setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
+        goTo("memorizeLearn");
+      }} />;
+  }
+
+  if (view === "memorizeLearn") {
+    return <MemorizeLearnScreen
+      chunk={memorizeSource.chunk}
+      priorSessionText={memorizeSessionChunks.join(" ")}
+      defaultLoops={memorizeDefaultLoops}
+      logAttempt={(itemId, result) => recordMemResult(itemId, result)}
+      onChunkLearned={() => setMemorizeSessionChunks((s) => [...s, memorizeSource.chunk.text])}
+      onExit={() => {
+        // After finishing (or abandoning) a chunk, drop straight
+        // back to this surah's chunk list rather than all the way
+        // out, since the natural next step is usually "the next
+        // chunk" — matches the chaining flow's intent.
+        setPrevViews((p) => p.slice(0, -1));
+        setView("memorizeChunkList");
+      }}
+    />;
+  }
+
+  if (view === "memorizeReview") {
+    const queue = sortByMostOverdue(memItemsList);
+    return <MemorizeReviewScreen queue={queue}
+      onResult={(itemId, result) => recordMemResult(itemId, result)}
+      onExit={goBack} />;
+  }
+
   if (view === "home") {
     const continueAyah = AYAT[currentSurah]?.[currentAyahIdx];
     const surahMeta = surahDirectory.find((s) => s.id === currentSurah);
@@ -1769,6 +1977,47 @@ export default function QuranUnderstandingApp() {
             </div>
             <span style={{ color: T.gold, fontSize: 18 }}>→</span>
           </div>
+
+          {/* Memorization: due-review badge takes priority over the
+              generic entry card whenever something's actually due —
+              reviews should be surfaced, not buried, per spec. */}
+          {dueMemCount > 0 ? (
+            <div
+              onClick={() => goTo("memorizeReview")}
+              style={{
+                marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "16px 18px", borderRadius: 16, cursor: "pointer",
+                background: `linear-gradient(135deg, rgba(201,164,92,0.16), rgba(201,164,92,0.05))`,
+                border: `1px solid rgba(201,164,92,0.4)`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ fontSize: 22 }}>🧠</div>
+                <div>
+                  <div style={{ ...displaySerif, fontSize: 16, color: T.gold }}>{dueMemCount} {dueMemCount === 1 ? "ayah" : "chunks"} due for review</div>
+                  <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 2 }}>Recall them now before they fade</div>
+                </div>
+              </div>
+              <span style={{ color: T.gold, fontSize: 18 }}>→</span>
+            </div>
+          ) : (
+            <div
+              onClick={() => { setMemorizeSessionChunks([]); goTo("memorizeSurahList"); }}
+              style={{
+                marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "16px 18px", borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, cursor: "pointer",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ fontSize: 22 }}>🧠</div>
+                <div>
+                  <div style={{ ...displaySerif, fontSize: 16, color: T.textHi }}>Memorize the Quran</div>
+                  <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 2 }}>{memItemsList.length === 0 ? "Active recall, spaced over time" : `${memItemsList.filter((it) => it.status === "learned").length} chunks memorized`}</div>
+                </div>
+              </div>
+              <span style={{ color: T.gold, fontSize: 18 }}>→</span>
+            </div>
+          )}
 
           {/* Quick review */}
           <div
@@ -2039,8 +2288,15 @@ export default function QuranUnderstandingApp() {
       // ayat, so there's no per-ayah recitation clip to fetch — these
       // stay on the synthesized voice.
     }
+    const onMemorize = audioRef ? () => {
+      const chunk = { surahId: audioRef.surahId, ayahStart: ayah.n, ayahEnd: ayah.n, ayat: [ayah], text: ayah.ar };
+      const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
+      setMemorizeSessionChunks([]);
+      setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
+      goTo("memorizeLearn");
+    } : null;
     return <LessonFlow key={keyId} ayah={ayah} title={title} subtitle={subtitle} audioRef={audioRef}
-      onExit={goBack} onFinish={() => { onDone(); goBack(); }} onWordSeen={recordWordSeen} />;
+      onExit={goBack} onFinish={() => { onDone(); goBack(); }} onWordSeen={recordWordSeen} onMemorize={onMemorize} />;
   }
 
   /* ---------------- JOURNEY 3: WHOLE QURAN ---------------- */
@@ -3120,7 +3376,7 @@ function QuizSession({ mode = "ayah", chunks, resolveChunkAudio, surahId, ayat, 
 /* ============================================================
    LESSON FLOW — the 8-step core learning loop
    ============================================================ */
-function LessonFlow({ ayah, title, subtitle, audioRef, onExit, onFinish, onWordSeen }) {
+function LessonFlow({ ayah, title, subtitle, audioRef, onExit, onFinish, onWordSeen, onMemorize }) {
   const [step, setStep] = useState(0); // 0 hear/discover, 1 practice (quiz), 2 understand, 3 hear again/check, 4 connect
   const [revealed, setRevealed] = useState(new Set());
   const [reciting, setReciting] = useState(false);
@@ -3374,6 +3630,24 @@ function LessonFlow({ ayah, title, subtitle, audioRef, onExit, onFinish, onWordS
               <div style={{ fontSize: 22 }}>✨</div>
               <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo }}>You understood this without needing the full English underneath. That's the whole point.</div>
             </div>
+            {onMemorize && (
+              <div
+                onClick={onMemorize}
+                style={{
+                  marginTop: 18, display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "14px 16px", borderRadius: 14, background: T.inkRaised, border: `1px solid ${T.inkLine}`, cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ fontSize: 20 }}>🧠</div>
+                  <div>
+                    <div style={{ ...displaySerif, fontSize: 15, color: T.textHi }}>Memorize this ayah now</div>
+                    <div style={{ ...bodySans, fontSize: 11.5, color: T.textLo, marginTop: 2 }}>Right while the meaning's fresh</div>
+                  </div>
+                </div>
+                <span style={{ color: T.gold, fontSize: 16 }}>→</span>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -3397,6 +3671,507 @@ function StepLabel({ n, text, style }) {
       <div style={{ width: 22, height: 22, borderRadius: 99, border: `1px solid ${T.gold}`, color: T.gold, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", ...mono }}>{n}</div>
       <div style={{ ...displaySerif, fontSize: 18, color: T.textHi, fontStyle: "italic" }}>{text}</div>
     </div>
+  );
+}
+
+/* ============================================================
+   MEMORIZATION — recall input (speech, with typed fallback)
+   Speech recognition here is the BROWSER's own on-device/cloud STT
+   (Web Speech API), not a synthesized-voice concern — it's input,
+   not output, so it doesn't touch the app's "never synthesize
+   Quran recitation" rule at all. Browser support for Arabic speech
+   recognition is genuinely inconsistent (spotty on desktop Safari
+   and some Android browsers), so this always offers typed recall
+   as a real, equally-functional fallback, not just an error state.
+   ============================================================ */
+function speechRecognitionSupported() {
+  return typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function RecallInput({ expectedText, onResult }) {
+  const supported = useMemo(() => speechRecognitionSupported(), []);
+  const [mode, setMode] = useState(supported ? "speech" : "text");
+  const [listening, setListening] = useState(false);
+  const [typedValue, setTypedValue] = useState("");
+  const [speechError, setSpeechError] = useState(null);
+  const recognitionRef = React.useRef(null);
+
+  React.useEffect(() => () => { recognitionRef.current?.stop(); }, []);
+
+  function startListening() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setMode("text"); return; }
+    setSpeechError(null);
+    const rec = new SR();
+    rec.lang = "ar-SA";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      const transcript = e.results?.[0]?.[0]?.transcript || "";
+      onResult(matchRecall(expectedText, transcript), transcript);
+    };
+    rec.onerror = (e) => {
+      setListening(false);
+      setSpeechError(
+        e.error === "not-allowed" || e.error === "service-not-allowed"
+          ? "Microphone access was denied — allow it in your browser, or type instead."
+          : "Couldn't hear that clearly — try again, or switch to typing."
+      );
+    };
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    try { rec.start(); } catch { setListening(false); }
+  }
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }
+  function submitTyped() {
+    if (!typedValue.trim()) return;
+    onResult(matchRecall(expectedText, typedValue), typedValue);
+    setTypedValue("");
+  }
+
+  if (mode === "speech") {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <button
+          onClick={listening ? stopListening : startListening}
+          style={{
+            width: 72, height: 72, borderRadius: 99, border: "none", cursor: "pointer",
+            background: listening ? `linear-gradient(135deg, ${T.gold}, #B5893F)` : T.inkRaised,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28,
+            boxShadow: listening ? "0 0 0 8px rgba(201,164,92,0.15)" : "none",
+            transition: "box-shadow 0.3s ease",
+          }}
+          aria-label={listening ? "Stop listening" : "Tap to recite"}
+        >🎙️</button>
+        <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo, marginTop: 10 }}>
+          {listening ? "Listening… tap to stop" : "Tap and recite it aloud"}
+        </div>
+        {speechError && (
+          <div style={{ ...bodySans, fontSize: 11.5, color: T.danger, marginTop: 8 }}>{speechError}</div>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <GhostButton onClick={() => { stopListening(); setMode("text"); }}>Type it instead</GhostButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <textarea
+        dir="rtl"
+        value={typedValue}
+        onChange={(e) => setTypedValue(e.target.value)}
+        placeholder="اكتب الآية…"
+        rows={3}
+        style={{
+          width: "100%", ...arabicFont, fontSize: 20, padding: "14px 16px", borderRadius: 14,
+          background: T.inkRaised, border: `1px solid ${T.inkLine}`, color: T.textHi, outline: "none", resize: "none",
+          boxSizing: "border-box",
+        }}
+      />
+      <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+        <PrimaryButton onClick={submitTyped} disabled={!typedValue.trim()}>Check</PrimaryButton>
+        {supported && <GhostButton onClick={() => setMode("speech")}>Use voice instead</GhostButton>}
+      </div>
+    </div>
+  );
+}
+
+// Renders a recall result's per-word breakdown — correct words in
+// the normal ink color, wrong words struck through in the danger
+// color with what was actually heard/typed underneath, missing
+// words shown as a dashed placeholder. This is the visible half of
+// error isolation: the user sees exactly which word broke.
+function RecallResultWords({ result }) {
+  return (
+    <div dir="rtl" style={{ display: "flex", flexWrap: "wrap", gap: "6px 10px", justifyContent: "center" }}>
+      {result.wordResults.map((w, i) => (
+        <div key={i} style={{ textAlign: "center" }}>
+          <div style={{
+            ...arabicFont, fontSize: 20,
+            color: w.status === "correct" ? T.textHi : T.danger,
+            textDecoration: w.status === "wrong" ? "line-through" : "none",
+            opacity: w.status === "missing" ? 0.5 : 1,
+            borderBottom: w.status === "missing" ? `1.5px dashed ${T.danger}` : "none",
+          }}>
+            {w.word || "—"}
+          </div>
+          {w.status !== "correct" && w.heard && (
+            <div style={{ ...bodySans, fontSize: 9.5, color: T.textFaint, marginTop: 2 }}>heard: {w.heard}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   MEMORIZATION — Learn flow (one chunk, 1-3 ayat)
+   Implements the full learning-science sequence from the spec:
+   translation first (reusing ArabicChunks — same component the
+   understanding feature uses, not a duplicate) -> capped audio
+   loops with a visible counter -> blind recall (testing effect,
+   not more listening) -> on failure, isolate + replay only the
+   broken word(s) via real per-word audio, then re-attempt the
+   FULL chunk -> on success, chain: recall this chunk plus every
+   prior chunk from this session together, before the chunk is
+   marked learned and enters the spaced-repetition queue.
+   ============================================================ */
+function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLearned, onExit, logAttempt }) {
+  const [phase, setPhase] = useState("translation"); // translation -> listen -> recall -> isolateReplay -> chainRecall -> done
+  const [loopsTarget, setLoopsTarget] = useState(defaultLoops);
+  const [loopsCompleted, setLoopsCompleted] = useState(0);
+  const [playingLoops, setPlayingLoops] = useState(false);
+  const [audioError, setAudioError] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+  const [failCount, setFailCount] = useState(0);
+  const cancelPlaybackRef = React.useRef(null);
+
+  React.useEffect(() => () => cancelPlaybackRef.current?.(), []);
+
+  function startLoops() {
+    setAudioError(false);
+    setLoopsCompleted(0);
+    setPlayingLoops(true);
+    cancelPlaybackRef.current = playRecitationRange({
+      surahId: chunk.surahId, ayahStart: chunk.ayahStart, ayahEnd: chunk.ayahEnd, loops: loopsTarget,
+      onLoopStart: (n) => setLoopsCompleted(n - 1),
+      onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); },
+      onError: () => { setPlayingLoops(false); setAudioError(true); },
+    });
+  }
+
+  function handleRecallResult(result) {
+    setLastResult(result);
+    logAttempt(chunk.__itemId, result.passed ? "pass" : "fail", result.accuracy);
+    if (result.passed) {
+      setFailCount(0);
+      setPhase(priorSessionText ? "chainRecall" : "done");
+      if (!priorSessionText) onChunkLearned();
+    } else {
+      setFailCount((n) => n + 1);
+      setPhase("isolateReplay");
+    }
+  }
+
+  function handleChainResult(result) {
+    setLastResult(result);
+    logAttempt(chunk.__itemId, result.passed ? "pass" : "fail", result.accuracy);
+    // Chaining is reinforcement, not a gate: this chunk already
+    // proved itself in the standalone recall above, so a rough
+    // chain attempt doesn't undo that — it's fine to let the user
+    // retry the chain or just move on either way.
+    setPhase("done");
+    onChunkLearned();
+  }
+
+  function replayBroken() {
+    cancelPlaybackRef.current = playIsolatedWords(chunk, lastResult.brokenIndices, {
+      onEnd: () => setPhase("recall"),
+    });
+  }
+
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title={`Ayah${chunk.ayahEnd > chunk.ayahStart ? "s" : ""} ${chunk.ayahStart}${chunk.ayahEnd > chunk.ayahStart ? `–${chunk.ayahEnd}` : ""}`} onBack={onExit} />
+      <div style={{ padding: "0 20px" }}>
+
+        {phase === "translation" && (
+          <>
+            <StepLabel n={1} text="Meaning first" />
+            <div style={{ marginTop: 16 }}>
+              {chunk.ayat.map((ayah) => (
+                <div key={ayah.n} style={{ marginBottom: 14 }}>
+                  <ArabicChunks
+                    chunks={ayah.chunks}
+                    revealed={new Set(ayah.chunks.map((_, i) => i))}
+                    onTap={() => {}}
+                    audioRef={{ surahId: chunk.surahId }}
+                    ayahNum={ayah.n}
+                    wordRanges={computeWordRanges(ayah.chunks)}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, ...bodySans, fontSize: 12.5, color: T.textLo, textAlign: "center" }}>
+              You already understand this — now let's memorize it.
+            </div>
+          </>
+        )}
+
+        {phase === "listen" && (
+          <>
+            <StepLabel n={2} text="Listen" />
+            <div style={{ marginTop: 14 }}>
+              <ArabicCenterpiece ar={chunk.text} />
+            </div>
+            <div style={{ marginTop: 18, textAlign: "center" }}>
+              <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 10 }}>
+                Loop count: {loopsTarget} {!playingLoops && loopsCompleted === 0 && (
+                  <span style={{ marginLeft: 8 }}>
+                    {[3, 4, 5].map((n) => (
+                      <button key={n} onClick={() => setLoopsTarget(n)} style={{
+                        ...mono, fontSize: 11, padding: "3px 8px", marginLeft: 4, borderRadius: 8, cursor: "pointer",
+                        background: loopsTarget === n ? T.gold : T.inkRaised, color: loopsTarget === n ? "#1A1305" : T.textLo,
+                        border: `1px solid ${T.inkLine}`,
+                      }}>{n}</button>
+                    ))}
+                  </span>
+                )}
+              </div>
+              <button onClick={startLoops} disabled={playingLoops} style={{
+                width: 64, height: 64, borderRadius: 99, border: "none", cursor: playingLoops ? "default" : "pointer",
+                background: audioError ? "transparent" : `linear-gradient(135deg, ${T.gold}, #B5893F)`,
+                borderColor: audioError ? T.danger : T.gold,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {audioError ? <RetryIcon color={T.danger} size={22} /> : <PlayPauseIcon playing={playingLoops} size={22} />}
+              </button>
+              <div style={{ ...bodySans, fontSize: 12, color: audioError ? T.danger : T.textFaint, marginTop: 10 }}>
+                {audioError ? "Recitation unavailable — tap to retry" : `${loopsCompleted} / ${loopsTarget} loops played`}
+              </div>
+            </div>
+          </>
+        )}
+
+        {phase === "recall" && (
+          <>
+            <StepLabel n={3} text="Recall it — no peeking" />
+            <div style={{ marginTop: 6, ...bodySans, fontSize: 12.5, color: T.textLo, textAlign: "center" }}>
+              {failCount > 0 ? "Try the full chunk again." : "Say or type the ayah from memory."}
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <RecallInput expectedText={chunk.text} onResult={handleRecallResult} />
+            </div>
+          </>
+        )}
+
+        {phase === "isolateReplay" && lastResult && (
+          <>
+            <StepLabel n={3} text="Close — let's fix the broken part" />
+            <div style={{ marginTop: 14, padding: 16, borderRadius: 14, background: T.inkRaised, border: `1px solid ${T.inkLine}` }}>
+              <RecallResultWords result={lastResult} />
+              <div style={{ ...bodySans, fontSize: 11.5, color: T.textFaint, marginTop: 12, textAlign: "center" }}>
+                {Math.round(lastResult.accuracy * 100)}% — only the word(s) above need work, not the whole ayah.
+              </div>
+            </div>
+            <div style={{ marginTop: 18, textAlign: "center" }}>
+              <PrimaryButton onClick={replayBroken}>Hear just the broken word(s)</PrimaryButton>
+              <div style={{ marginTop: 10 }}>
+                <GhostButton onClick={() => setPhase("recall")}>Skip straight to retry</GhostButton>
+              </div>
+            </div>
+          </>
+        )}
+
+        {phase === "chainRecall" && (
+          <>
+            <StepLabel n={4} text="Chain it together" />
+            <div style={{ marginTop: 6, ...bodySans, fontSize: 12.5, color: T.textLo, textAlign: "center" }}>
+              This chunk is solid. Now recall everything you've learned this session, back to back.
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <RecallInput expectedText={`${priorSessionText} ${chunk.text}`} onResult={handleChainResult} />
+            </div>
+          </>
+        )}
+
+        {phase === "done" && lastResult && (
+          <div style={{ marginTop: 40, textAlign: "center" }}>
+            <div style={{ fontSize: 40 }}>✅</div>
+            <div style={{ ...displaySerif, fontSize: 20, color: T.textHi, marginTop: 10 }}>Chunk memorized</div>
+            <div style={{ ...bodySans, fontSize: 13, color: T.textLo, marginTop: 6 }}>
+              It's now in your review queue — you'll be prompted to recall it again at increasing intervals.
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: 20, background: `linear-gradient(0deg, ${T.ink} 60%, transparent)` }}>
+        {phase === "translation" && <PrimaryButton onClick={() => setPhase("listen")}>Continue to listening</PrimaryButton>}
+        {phase === "listen" && <PrimaryButton disabled={loopsCompleted < loopsTarget} onClick={() => setPhase("recall")}>{loopsCompleted < loopsTarget ? "Finish the loops first" : "I'm ready to recall it"}</PrimaryButton>}
+        {phase === "done" && <PrimaryButton onClick={onExit}>Continue</PrimaryButton>}
+      </div>
+    </Screen>
+  );
+}
+
+/* ============================================================
+   MEMORIZATION — Review flow (spaced-repetition queue)
+   Blind recall first, always — the whole point of testing-effect
+   review is that re-exposure (seeing the text) only happens AFTER
+   a failed attempt, as a hint, or if the user explicitly asks for
+   one. On pass, the item's interval grows (srs.js); on fail, it
+   resets to near-term rotation, not removed from the queue.
+   ============================================================ */
+function MemorizeReviewScreen({ queue, onResult, onExit }) {
+  const [i, setI] = useState(0);
+  const [phase, setPhase] = useState("recall"); // recall -> hint (after fail) -> recall (retry)
+  const [lastResult, setLastResult] = useState(null);
+  const [stats, setStats] = useState({ pass: 0, fail: 0 });
+
+  const item = queue[i];
+  const chunk = item ? chunkForMemItem(item) : null;
+
+  function handleResult(result) {
+    setLastResult(result);
+    if (result.passed) {
+      setStats((s) => ({ ...s, pass: s.pass + 1 }));
+      onResult(item.id, "pass");
+      advance();
+    } else {
+      setStats((s) => ({ ...s, fail: s.fail + 1 }));
+      onResult(item.id, "fail");
+      setPhase("hint");
+    }
+  }
+
+  function advance() {
+    setPhase("recall");
+    setLastResult(null);
+    setI((n) => n + 1);
+  }
+
+  if (!item || !chunk) {
+    return (
+      <Screen>
+        <FontLoader />
+        <TopBar title="Review" onBack={onExit} />
+        <div style={{ padding: "40px 20px", textAlign: "center" }}>
+          <div style={{ fontSize: 40 }}>🌙</div>
+          <div style={{ ...displaySerif, fontSize: 20, color: T.textHi, marginTop: 10 }}>
+            {stats.pass + stats.fail === 0 ? "Nothing due for review right now." : "Review complete"}
+          </div>
+          {stats.pass + stats.fail > 0 && (
+            <div style={{ ...bodySans, fontSize: 13, color: T.textLo, marginTop: 8 }}>
+              {stats.pass} recalled well · {stats.fail} need more practice
+            </div>
+          )}
+          <div style={{ marginTop: 24 }}><PrimaryButton onClick={onExit}>Done</PrimaryButton></div>
+        </div>
+      </Screen>
+    );
+  }
+
+  const surahMeta = ALL_SURAHS.find((s) => s.id === item.surahId);
+
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title={`Review · ${i + 1}/${queue.length}`} onBack={onExit} />
+      <div style={{ padding: "0 20px" }}>
+        <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo, textAlign: "center", marginBottom: 12 }}>
+          {surahMeta?.nameEn} · Ayah{chunk.ayahEnd > chunk.ayahStart ? "s" : ""} {chunk.ayahStart}{chunk.ayahEnd > chunk.ayahStart ? `–${chunk.ayahEnd}` : ""}
+        </div>
+
+        {phase === "recall" && (
+          <>
+            <StepLabel n="?" text="Recall from memory" />
+            <div style={{ marginTop: 18 }}>
+              <RecallInput expectedText={chunk.text} onResult={handleResult} />
+            </div>
+          </>
+        )}
+
+        {phase === "hint" && lastResult && (
+          <>
+            <StepLabel n="!" text="Here's a hint" />
+            <div style={{ marginTop: 14, padding: 16, borderRadius: 14, background: T.inkRaised, border: `1px solid ${T.inkLine}` }}>
+              <RecallResultWords result={lastResult} />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <ArabicCenterpiece ar={chunk.text} small />
+            </div>
+            <div style={{ marginTop: 18, textAlign: "center" }}>
+              <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 10 }}>
+                {Math.round(lastResult.accuracy * 100)}% — this dropped back into near-term rotation. Take another look, then move on.
+              </div>
+              <PrimaryButton onClick={advance}>Next</PrimaryButton>
+            </div>
+          </>
+        )}
+      </div>
+    </Screen>
+  );
+}
+
+/* ============================================================
+   MEMORIZATION — surah/chunk picker
+   Reuses ALL_SURAHS/AYAT (the same data the understanding feature
+   browses) rather than a separate content list — only surahs with
+   real ayah content can be chunked and memorized.
+   ============================================================ */
+function MemorizeSurahListScreen({ items, onPickSurah, onBack }) {
+  const surahsWithContent = ALL_SURAHS.filter((s) => AYAT[s.id]);
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title="Memorize the Quran" onBack={onBack} />
+      <div style={{ padding: "0 20px" }}>
+        <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo, marginBottom: 16, lineHeight: 1.5 }}>
+          Pick a surah. Each is broken into small 1–3 ayah chunks you actively recall, not just repeat-listen to.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {surahsWithContent.map((s) => {
+            const chunks = buildChunksForSurah(s.id);
+            const learned = chunks.filter((c) => items[`${s.id}:${c.ayahStart}-${c.ayahEnd}`]?.status === "learned").length;
+            return (
+              <div key={s.id} onClick={() => onPickSurah(s.id)} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "14px 16px", borderRadius: 14, background: T.inkRaised, border: `1px solid ${T.inkLine}`, cursor: "pointer",
+              }}>
+                <div>
+                  <div style={{ ...displaySerif, fontSize: 16, color: T.textHi }}>{s.nameEn}</div>
+                  <div style={{ ...bodySans, fontSize: 11.5, color: T.textLo, marginTop: 2 }}>{learned}/{chunks.length} chunks memorized</div>
+                </div>
+                <span style={{ color: T.gold, fontSize: 16 }}>→</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Screen>
+  );
+}
+
+function MemorizeChunkListScreen({ surahId, items, now, onPickChunk, onBack }) {
+  const meta = ALL_SURAHS.find((s) => s.id === surahId);
+  const chunks = buildChunksForSurah(surahId);
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title={meta?.nameEn || "Surah"} onBack={onBack} />
+      <div style={{ padding: "0 20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {chunks.map((c) => {
+            const id = `${surahId}:${c.ayahStart}-${c.ayahEnd}`;
+            const item = items[id];
+            const status = item?.status || "new";
+            const due = item ? isDue(item, now) : false;
+            const badge = status === "learned" ? (due ? "Due for review" : "Learned") : status === "learning" ? "In progress" : "Not started";
+            const badgeColor = status === "learned" ? (due ? T.gold : T.teal) : status === "learning" ? T.danger : T.textFaint;
+            return (
+              <div key={id} onClick={() => onPickChunk(c)} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "14px 16px", borderRadius: 14, background: T.inkRaised, border: `1px solid ${T.inkLine}`, cursor: "pointer",
+              }}>
+                <div>
+                  <div dir="rtl" style={{ ...arabicFont, fontSize: 17, color: T.parchment }}>{c.text.slice(0, 40)}{c.text.length > 40 ? "…" : ""}</div>
+                  <div style={{ ...bodySans, fontSize: 11.5, color: T.textLo, marginTop: 4 }}>Ayah{c.ayahEnd > c.ayahStart ? "s" : ""} {c.ayahStart}{c.ayahEnd > c.ayahStart ? `–${c.ayahEnd}` : ""}</div>
+                </div>
+                <span style={{ ...bodySans, fontSize: 10.5, fontWeight: 600, color: badgeColor }}>{badge}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Screen>
   );
 }
 
