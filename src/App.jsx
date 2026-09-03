@@ -3880,23 +3880,56 @@ function RecallInput({ expectedText, onResult }) {
   const [listening, setListening] = useState(false);
   const [typedValue, setTypedValue] = useState("");
   const [speechError, setSpeechError] = useState(null);
+  const [finalHeard, setFinalHeard] = useState("");   // confirmed-final chunks, accumulated
+  const [interimHeard, setInterimHeard] = useState(""); // current in-progress guess, replaced each event
   const recognitionRef = React.useRef(null);
 
   React.useEffect(() => () => { recognitionRef.current?.stop(); }, []);
+
+  const liveHeard = (finalHeard + " " + interimHeard).trim();
+  const liveTranslit = useMemo(() => (liveHeard ? transliterate(liveHeard) : ""), [liveHeard]);
+
+  function finishWith(transcript) {
+    setListening(false);
+    if (!transcript.trim()) {
+      setSpeechError("Didn't catch anything that time — try again, or type it instead.");
+      return;
+    }
+    onResult(matchRecall(expectedText, transcript), transcript);
+    setFinalHeard("");
+    setInterimHeard("");
+  }
 
   function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setMode("text"); return; }
     setSpeechError(null);
+    setFinalHeard("");
+    setInterimHeard("");
     const rec = new SR();
     rec.lang = "ar-SA";
-    rec.interimResults = false;
+    rec.interimResults = true; // live "as you go" feedback — this was previously off, which is why nothing visibly happened while listening
+    rec.continuous = true;     // keep listening through natural pauses in the ayah instead of cutting off after the first one
     rec.maxAlternatives = 1;
+    // Plain closure variables, not state — onend needs the truly
+    // latest value the instant recognition stops, and reading React
+    // state from inside this closure would be stale (captured at
+    // the render where startListening was created, not updated live).
+    let finalAcc = "";
+    let interimAcc = "";
     rec.onresult = (e) => {
-      const transcript = e.results?.[0]?.[0]?.transcript || "";
-      onResult(matchRecall(expectedText, transcript), transcript);
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const chunk = e.results[i][0]?.transcript || "";
+        if (e.results[i].isFinal) finalAcc = (finalAcc + " " + chunk).trim();
+        else interim += chunk;
+      }
+      interimAcc = interim;
+      setFinalHeard(finalAcc);
+      setInterimHeard(interim);
     };
     rec.onerror = (e) => {
+      if (e.error === "no-speech") return; // continuous mode: let onend handle it, don't interrupt an otherwise-working session
       setListening(false);
       setSpeechError(
         e.error === "not-allowed" || e.error === "service-not-allowed"
@@ -3904,14 +3937,20 @@ function RecallInput({ expectedText, onResult }) {
           : "Couldn't hear that clearly — try again, or switch to typing."
       );
     };
-    rec.onend = () => setListening(false);
+    rec.onend = () => {
+      // Whatever was heard — finalized or still just an interim guess
+      // at the moment recognition stopped — is what gets checked.
+      // Previously only a true "final" result counted, so a session
+      // that ended (browser timeout, tapping stop) before the engine
+      // finalized anything looked like it did nothing at all.
+      finishWith((finalAcc + " " + interimAcc).trim());
+    };
     recognitionRef.current = rec;
     setListening(true);
     try { rec.start(); } catch { setListening(false); }
   }
   function stopListening() {
-    recognitionRef.current?.stop();
-    setListening(false);
+    recognitionRef.current?.stop(); // triggers onend, which finalizes with whatever's been heard so far
   }
   function submitTyped() {
     if (!typedValue.trim()) return;
@@ -3922,6 +3961,27 @@ function RecallInput({ expectedText, onResult }) {
   if (mode === "speech") {
     return (
       <div style={{ textAlign: "center" }}>
+        {(listening || liveHeard) && (
+          <div style={{
+            marginBottom: 16, padding: "16px 14px", borderRadius: 14, minHeight: 70,
+            background: T.inkRaised, border: `1px solid ${listening ? T.gold : T.inkLine}`,
+          }}>
+            {liveHeard ? (
+              <>
+                <div dir="rtl" style={{ ...arabicFont, fontSize: 22, color: T.parchment, lineHeight: 1.7 }}>
+                  {finalHeard}{interimHeard && <span style={{ opacity: 0.55 }}> {interimHeard}</span>}
+                </div>
+                {liveTranslit && (
+                  <div style={{ ...mono, fontSize: 12, color: T.textFaint, marginTop: 8 }}>{liveTranslit}</div>
+                )}
+              </>
+            ) : (
+              <div style={{ ...bodySans, fontSize: 12.5, color: T.textFaint, fontStyle: "italic" }}>
+                Listening for your voice…
+              </div>
+            )}
+          </div>
+        )}
         <button
           onClick={listening ? stopListening : startListening}
           style={{
@@ -3934,7 +3994,7 @@ function RecallInput({ expectedText, onResult }) {
           aria-label={listening ? "Stop listening" : "Tap to recite"}
         >🎙️</button>
         <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo, marginTop: 10 }}>
-          {listening ? "Listening… tap to stop" : "Tap and recite it aloud"}
+          {listening ? "Listening… tap the mic when you're done" : "Tap and recite it aloud"}
         </div>
         <div style={{ ...bodySans, fontSize: 10.5, color: T.textFaint, marginTop: 6, lineHeight: 1.4 }}>
           Uses your microphone only to check what you recited against the real text — nothing is recorded, saved, or sent anywhere beyond that one check.
