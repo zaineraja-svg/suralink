@@ -207,10 +207,16 @@ function transliterateWord(word) {
  * words) into a readable Latin phonetic string.
  */
 export function transliterate(arabicText) {
-  return arabicText
-    .trim()
-    .split(/\s+/)
-    .map(transliterateWord)
-    .filter(Boolean)
-    .join(" ");
+  return transliterateWords(arabicText).join(" ");
+}
+
+/**
+ * Same as transliterate(), but returns one entry per Arabic word
+ * instead of joining them — the array is index-aligned with the
+ * source text's own whitespace-split words, which is what lets a
+ * UI highlight the Nth transliterated word in step with the Nth
+ * Arabic word (e.g. during word-by-word audio playback).
+ */
+export function transliterateWords(arabicText) {
+  return arabicText.trim().split(/\s+/).map(transliterateWord).filter(Boolean);
 }

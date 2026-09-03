@@ -7,7 +7,7 @@ import {
   countDue,
 } from "./srs.js";
 import { matchRecall, extractBrokenPhrase } from "./recallMatch.js";
-import { transliterate } from "./transliterate.js";
+import { transliterate, transliterateWords } from "./transliterate.js";
 
 /* ============================================================
    FONTS (loaded via link in index — for artifact preview we
@@ -1220,6 +1220,47 @@ function playIsolatedWords(chunk, brokenIndices, { onEnd, onError } = {}) {
   return () => { cancelled = true; stopWordAudio(); };
 }
 
+// Plays every word of a chunk, in order, back to back — each via
+// its own real per-word clip (same source as playIsolatedWords /
+// the Discover-it tap feature) — optionally looping the whole
+// sequence multiple times. `onWordStart(globalIndex)` fires right
+// as each word begins, which is what lets the UI highlight the
+// word currently being recited in sync with real audio, rather
+// than a rough time-based guess.
+function playChunkWordsLoop(chunk, { loops = 1, onWordStart, onLoopStart, onEnd, onError } = {}) {
+  const meta = buildFlatWordMeta(chunk);
+  let cancelled = false;
+  let loopsDone = 0;
+  let sawError = false;
+
+  function playOneLoop() {
+    if (cancelled) return;
+    onLoopStart && onLoopStart(loopsDone + 1);
+    let idx = 0;
+    const playNext = () => {
+      if (cancelled) return;
+      if (idx >= meta.length) {
+        loopsDone += 1;
+        if (sawError) { onError && onError(); return; }
+        if (loopsDone >= loops) { onEnd && onEnd(); return; }
+        playOneLoop();
+        return;
+      }
+      const { ayahNum, pos } = meta[idx];
+      onWordStart && onWordStart(idx);
+      playWordRange({
+        surahId: chunk.surahId, ayahNum, startWord: pos, endWord: pos,
+        onEnd: () => { idx += 1; playNext(); },
+        onError: () => { sawError = true; },
+      });
+    };
+    playNext();
+  }
+
+  playOneLoop();
+  return () => { cancelled = true; stopWordAudio(); };
+}
+
 function buildChunksForSurah(surahId) {
   const ayat = AYAT[surahId];
   if (!ayat) return [];
@@ -1624,7 +1665,18 @@ function ArabicChunks({ chunks, revealed, onTap, size = 30, audioRef, ayahNum, w
   );
 }
 
-function ArabicCenterpiece({ ar, small, translit }) {
+// Reciting-highlight color — a real orange, deliberately distinct
+// from the app's gold accent, so "this word is playing right now"
+// reads as its own unambiguous signal rather than blending into the
+// UI's normal highlight/selected states.
+const RECITING_ORANGE = "#E8720C";
+
+function ArabicCenterpiece({ ar, small, translit, words, translitWords, activeWordIndex }) {
+  // Word-aware mode (word arrays passed in) lights up the word
+  // currently being recited, in both scripts, in sync with real
+  // per-word audio — used by the memorization Listen step. Without
+  // `words`, this renders exactly as before: one static block.
+  const hasWords = Array.isArray(words) && words.length > 0;
   return (
     <div style={{
       background: `linear-gradient(180deg, ${T.parchment}, ${T.parchmentDim})`,
@@ -1633,10 +1685,33 @@ function ArabicCenterpiece({ ar, small, translit }) {
       position: "relative", overflow: "hidden",
     }}>
       <div style={{ position: "absolute", top: 8, left: 8, right: 8, bottom: 8, border: `1px solid rgba(201,164,92,0.35)`, borderRadius: 12, pointerEvents: "none" }} />
-      <div dir="rtl" style={{ ...arabicFont, fontSize: small ? 26 : 32, color: "#26201a", lineHeight: 2 }}>{ar}</div>
-      {translit && (
+      {hasWords ? (
+        <div dir="rtl" style={{ ...arabicFont, fontSize: small ? 26 : 32, lineHeight: 2 }}>
+          {words.map((w, i) => (
+            <span key={i} style={{
+              color: i === activeWordIndex ? RECITING_ORANGE : "#26201a",
+              fontWeight: i === activeWordIndex ? 700 : 400,
+              transition: "color 0.15s ease",
+            }}>{w}{i < words.length - 1 ? " " : ""}</span>
+          ))}
+        </div>
+      ) : (
+        <div dir="rtl" style={{ ...arabicFont, fontSize: small ? 26 : 32, color: "#26201a", lineHeight: 2 }}>{ar}</div>
+      )}
+      {translit && !hasWords && (
         <div style={{ ...mono, fontSize: small ? 12 : 13.5, color: "#6b5a3d", marginTop: 10, lineHeight: 1.6, letterSpacing: 0.2 }}>
           {translit}
+        </div>
+      )}
+      {hasWords && translitWords && (
+        <div style={{ ...mono, fontSize: small ? 12 : 13.5, marginTop: 10, lineHeight: 1.6, letterSpacing: 0.2 }}>
+          {translitWords.map((w, i) => (
+            <span key={i} style={{
+              color: i === activeWordIndex ? RECITING_ORANGE : "#6b5a3d",
+              fontWeight: i === activeWordIndex ? 700 : 400,
+              transition: "color 0.15s ease",
+            }}>{w}{i < translitWords.length - 1 ? " " : ""}</span>
+          ))}
         </div>
       )}
     </div>
@@ -3837,20 +3912,29 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
   const [lastResult, setLastResult] = useState(null);
   const [failCount, setFailCount] = useState(0);
   const [showTranslit, setShowTranslit] = useState(true); // on by default, per explicit request — toggleable for those who don't want it
+  const [activeWordIdx, setActiveWordIdx] = useState(null);
   const cancelPlaybackRef = React.useRef(null);
-  const chunkTranslit = useMemo(() => transliterate(chunk.text), [chunk.text]);
+  const chunkWords = useMemo(() => chunk.text.trim().split(/\s+/), [chunk.text]);
+  const chunkTranslitWords = useMemo(() => transliterateWords(chunk.text), [chunk.text]);
+  const chunkTranslit = useMemo(() => chunkTranslitWords.join(" "), [chunkTranslitWords]);
 
   React.useEffect(() => () => cancelPlaybackRef.current?.(), []);
 
+  // Word-by-word playback (real per-word clips, same source as the
+  // Discover-it tap feature) rather than one continuous ayah
+  // recording — this is what makes it possible to know exactly
+  // which word is playing at any moment and highlight it live,
+  // instead of guessing from elapsed time against a single file.
   function startLoops() {
     setAudioError(false);
     setLoopsCompleted(0);
     setPlayingLoops(true);
-    cancelPlaybackRef.current = playRecitationRange({
-      surahId: chunk.surahId, ayahStart: chunk.ayahStart, ayahEnd: chunk.ayahEnd, loops: loopsTarget,
+    cancelPlaybackRef.current = playChunkWordsLoop(chunk, {
+      loops: loopsTarget,
+      onWordStart: (i) => setActiveWordIdx(i),
       onLoopStart: (n) => setLoopsCompleted(n - 1),
-      onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); },
-      onError: () => { setPlayingLoops(false); setAudioError(true); },
+      onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); setActiveWordIdx(null); },
+      onError: () => { setPlayingLoops(false); setAudioError(true); setActiveWordIdx(null); },
     });
   }
 
@@ -3862,6 +3946,7 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
   function pauseLoops() {
     cancelPlaybackRef.current?.();
     setPlayingLoops(false);
+    setActiveWordIdx(null);
   }
   function toggleLoops() {
     if (playingLoops) pauseLoops();
@@ -3931,7 +4016,12 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
           <>
             <StepLabel n={2} text="Listen" />
             <div style={{ marginTop: 14 }}>
-              <ArabicCenterpiece ar={chunk.text} translit={showTranslit ? chunkTranslit : null} />
+              <ArabicCenterpiece
+                ar={chunk.text}
+                words={chunkWords}
+                translitWords={showTranslit ? chunkTranslitWords : null}
+                activeWordIndex={activeWordIdx}
+              />
             </div>
             <div style={{ marginTop: 8, textAlign: "center" }}>
               <GhostButton onClick={() => setShowTranslit((v) => !v)}>
