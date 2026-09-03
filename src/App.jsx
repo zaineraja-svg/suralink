@@ -8,6 +8,7 @@ import {
 } from "./srs.js";
 import { matchRecall, extractBrokenPhrase } from "./recallMatch.js";
 import { transliterate, transliterateWords } from "./transliterate.js";
+import { serializeAppState, deserializeAppState, STORAGE_KEY } from "./persist.js";
 
 /* ============================================================
    FONTS (loaded via link in index — for artifact preview we
@@ -1793,28 +1794,36 @@ function ArabicCenterpiece({ ar, small, translit, words, translitWords, activeWo
 /* ============================================================
    MAIN APP
    ============================================================ */
+// Loads once, synchronously, before first render — a lazy
+// useState initializer function runs only once (not on every
+// render), so this is safe to call directly inside each `useState`
+// below without a separate loading phase or flash of empty state.
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return deserializeAppState(raw ? JSON.parse(raw) : null);
+  } catch {
+    return deserializeAppState(null); // corrupt/unavailable storage -> safe defaults, never a crash
+  }
+}
+
 export default function QuranUnderstandingApp() {
-  const [view, setView] = useState("onboarding");
+  const persisted = React.useRef(null);
+  if (persisted.current === null) persisted.current = loadPersisted();
+
+  const [view, setView] = useState(persisted.current.onboarded ? "home" : "onboarding");
   const [prevViews, setPrevViews] = useState([]);
   const [onboardStep, setOnboardStep] = useState(0);
-  const [prefs, setPrefs] = useState({ goal: null, level: null, time: null });
+  const [prefs, setPrefs] = useState(persisted.current.prefs);
 
-  const [progress, setProgress] = useState({
-    ayahsExplored: new Set(),        // "surahId:ayahN"
-    ayahsUnderstood: new Set(),
-    surahsCompleted: new Set(),
-    words: {},                       // { arWord: {count, meaning} }
-    streak: 12,
-    salahDone: new Set(),
-    bookmarks: new Set(),
-  });
+  const [progress, setProgress] = useState(persisted.current.progress);
 
   // Memorization: MemorizationItems keyed by "surahId:start-end", plus
   // a flat session log (per the spec's MemorizationSession — one
   // entry per drilled attempt, pass/fail + timestamp). The scheduler
   // itself (srs.js) is a pure module with no knowledge of this
   // state shape; this is just where its inputs/outputs get stored.
-  const [memorization, setMemorization] = useState({ items: {}, sessions: [] });
+  const [memorization, setMemorization] = useState(persisted.current.memorization);
   const [memorizeSource, setMemorizeSource] = useState(null); // { surahId } | { surahId, chunk }
   const [memorizeSessionChunks, setMemorizeSessionChunks] = useState([]); // chained chunk texts learned THIS sitting
   const [memorizeDefaultLoops, setMemorizeDefaultLoops] = useState(5); // user-adjustable, per spec
@@ -1843,8 +1852,26 @@ export default function QuranUnderstandingApp() {
   const memItemsList = useMemo(() => Object.values(memorization.items), [memorization.items]);
   const dueMemCount = useMemo(() => countDue(memItemsList), [memItemsList]);
 
-  const [currentSurah, setCurrentSurah] = useState(1);
-  const [currentAyahIdx, setCurrentAyahIdx] = useState(0);
+  const [currentSurah, setCurrentSurah] = useState(persisted.current.currentSurah);
+  const [currentAyahIdx, setCurrentAyahIdx] = useState(persisted.current.currentAyahIdx);
+
+  // Save on every meaningful change — progress, memorization,
+  // prefs, and reading position all persist across a reload/reopen
+  // now, via localStorage (per-device only, same as the rest of the
+  // web platform's storage model — there's no account/sync here).
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeAppState({
+        prefs, progress, memorization, currentSurah, currentAyahIdx,
+        onboarded: view !== "onboarding",
+      })));
+    } catch {
+      // Storage unavailable/full/blocked (private browsing, quota,
+      // etc.) — the app still works for this session, it just won't
+      // remember next time. Not worth surfacing as an error to the user.
+    }
+  });
+
   const [lessonSource, setLessonSource] = useState(null); // {type:'surah'|'salah', ...}
   const [surahSearch, setSurahSearch] = useState("");
   const [playingAyahKey, setPlayingAyahKey] = useState(null); // "surahId:ayahN" currently reciting, for the surah reader
