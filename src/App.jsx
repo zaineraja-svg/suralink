@@ -4938,13 +4938,22 @@ function PrayerQiblaScreen({ goBack }) {
                     </div>
                   )}
                   {compassDebug.length > 0 && (
-                    <div style={{
-                      marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(0,0,0,0.25)",
-                      textAlign: "left", ...mono, fontSize: 9.5, color: T.textFaint, lineHeight: 1.6,
-                      maxHeight: 140, overflowY: "auto",
-                    }}>
-                      {compassDebug.map((line, i) => <div key={i}>{line}</div>)}
-                    </div>
+                    <>
+                      <div style={{
+                        marginTop: 12, padding: "10px 12px", borderRadius: 10,
+                        background: "rgba(201,164,92,0.12)", border: `1px solid rgba(201,164,92,0.3)`,
+                        textAlign: "left", ...bodySans, fontSize: 11.5, color: T.gold, lineHeight: 1.5,
+                      }}>
+                        Just type this line back to me: <strong>"{compassDebug[compassDebug.length - 1]}"</strong>
+                      </div>
+                      <div style={{
+                        marginTop: 8, padding: 10, borderRadius: 10, background: "rgba(0,0,0,0.25)",
+                        textAlign: "left", ...mono, fontSize: 9.5, color: T.textFaint, lineHeight: 1.6,
+                        maxHeight: 140, overflowY: "auto",
+                      }}>
+                        {compassDebug.map((line, i) => <div key={i}>{line}</div>)}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
