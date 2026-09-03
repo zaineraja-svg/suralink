@@ -4121,7 +4121,7 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
               <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginBottom: 10 }}>
                 Loop count: {loopsTarget} {!playingLoops && loopsCompleted === 0 && (
                   <span style={{ marginLeft: 8 }}>
-                    {[1, 3, 4, 5].map((n) => (
+                    {[1, 3, 5].map((n) => (
                       <button key={n} onClick={() => setLoopsTarget(n)} style={{
                         ...mono, fontSize: 11, padding: "3px 8px", marginLeft: 4, borderRadius: 8, cursor: "pointer",
                         background: loopsTarget === n ? T.gold : T.inkRaised, color: loopsTarget === n ? "#1A1305" : T.textLo,
