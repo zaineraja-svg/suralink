@@ -426,18 +426,23 @@ function SpeakerIcon({ size = 12, color, active }) {
 
 /* ============================================================
    SAMPLE CONTENT
-   NOTE: English renderings below are simplified, clearly-labeled
-   placeholder meanings for prototype purposes only — not a
-   reproduction of any licensed translation (e.g. The Clear
-   Quran). The architecture is built so a licensed translation
-   provider can be swapped in without touching the app logic.
+   NOTE: Word/phrase meanings (`m` fields) are literal
+   word-by-word glosses adapted from the Quranic Arabic Corpus
+   (corpus.quran.com), used with attribution under its stated
+   reuse terms — NOT a reproduction of any single clause-level
+   translation (e.g. Sahih International, The Clear Quran). This
+   is a deliberate switch away from an earlier draft that too
+   closely paraphrased a licensed translation. `gist`/`connect`
+   commentary is original writing for this app, not translation.
+   The architecture still allows a licensed translation provider
+   to be swapped in later without touching app logic.
    ============================================================ */
 
 // A lightweight "translation provider" abstraction — swap this
 // object for a licensed provider later without touching UI code.
 const TRANSLATION_PROVIDER = {
-  id: "sample-placeholder-v1",
-  label: "Sample placeholder meanings (not for redistribution)",
+  id: "corpus-quran-wbw-v1",
+  label: "Word-by-word glosses adapted from the Quranic Arabic Corpus (corpus.quran.com)",
 };
 
 const ALL_SURAHS = [
@@ -492,10 +497,10 @@ const AYAT = {
       n: 1,
       ar: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
       chunks: [
-        { ar: "بِسْمِ", m: "In the name of" },
-        { ar: "اللَّهِ", m: "Allah" },
-        { ar: "الرَّحْمَٰنِ", m: "the Most Merciful" },
-        { ar: "الرَّحِيمِ", m: "the Especially Merciful" },
+        { ar: "بِسْمِ", m: "In the name" },
+        { ar: "اللَّهِ", m: "of Allah" },
+        { ar: "الرَّحْمَٰنِ", m: "the Most Gracious" },
+        { ar: "الرَّحِيمِ", m: "the Most Merciful" },
       ],
       gist: "You're opening with God's name and two of His names about mercy — this is why Muslims say it before almost anything.",
       connect: "Next time you start something — a meal, a task, salah — remember you're consciously placing it in the name of a Merciful God.",
@@ -504,10 +509,10 @@ const AYAT = {
       n: 2,
       ar: "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
       chunks: [
-        { ar: "الْحَمْدُ", m: "All praise" },
-        { ar: "لِلَّهِ", m: "is for Allah" },
-        { ar: "رَبِّ", m: "Lord/Sustainer" },
-        { ar: "الْعَالَمِينَ", m: "of all worlds" },
+        { ar: "الْحَمْدُ", m: "All praise and thanks" },
+        { ar: "لِلَّهِ", m: "(be) to Allah" },
+        { ar: "رَبِّ", m: "the Lord" },
+        { ar: "الْعَالَمِينَ", m: "of the universe" },
       ],
       gist: "You're acknowledging that every form of praise ultimately belongs to the One who sustains everything that exists.",
       connect: "When you say 'Alhamdulillah' in daily life, this ayah is the full idea behind that one word.",
@@ -516,8 +521,8 @@ const AYAT = {
       n: 3,
       ar: "الرَّحْمَٰنِ الرَّحِيمِ",
       chunks: [
-        { ar: "الرَّحْمَٰنِ", m: "the Most Merciful" },
-        { ar: "الرَّحِيمِ", m: "the Especially Merciful" },
+        { ar: "الرَّحْمَٰنِ", m: "the Most Gracious" },
+        { ar: "الرَّحِيمِ", m: "the Most Merciful" },
       ],
       gist: "Before anything else is asked of you, you're reminded twice that God's core nature toward you is mercy.",
       connect: "Whatever else happens in the surah, this sets the tone: mercy comes first.",
@@ -526,7 +531,7 @@ const AYAT = {
       n: 4,
       ar: "مَالِكِ يَوْمِ الدِّينِ",
       chunks: [
-        { ar: "مَالِكِ", m: "Master/Owner" },
+        { ar: "مَالِكِ", m: "The Master" },
         { ar: "يَوْمِ", m: "of the Day" },
         { ar: "الدِّينِ", m: "of Judgment" },
       ],
@@ -537,8 +542,8 @@ const AYAT = {
       n: 5,
       ar: "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
       chunks: [
-        { ar: "إِيَّاكَ نَعْبُدُ", m: "You alone we worship" },
-        { ar: "وَإِيَّاكَ نَسْتَعِينُ", m: "and You alone we ask for help" },
+        { ar: "إِيَّاكَ نَعْبُدُ", m: "You Alone we worship" },
+        { ar: "وَإِيَّاكَ نَسْتَعِينُ", m: "and You Alone we ask for help" },
       ],
       gist: "This is the hinge of the whole surah — you're speaking directly to God for the first time, pledging worship and help to Him alone.",
       connect: "You say this at least 17 times a day in salah. It's a standing renewal of who you rely on.",
@@ -548,8 +553,8 @@ const AYAT = {
       ar: "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
       chunks: [
         { ar: "اهْدِنَا", m: "Guide us" },
-        { ar: "الصِّرَاطَ", m: "to the path" },
-        { ar: "الْمُسْتَقِيمَ", m: "the straight one" },
+        { ar: "الصِّرَاطَ", m: "(to) the path" },
+        { ar: "الْمُسْتَقِيمَ", m: "the straight" },
       ],
       gist: "You're asking, plainly, to be kept on the right path — not just to find it once, but to stay on it.",
       connect: "This is the core request of the whole surah — everything before it was setting up who you're asking, and this is what you ask for.",
@@ -558,9 +563,9 @@ const AYAT = {
       n: 7,
       ar: "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
       chunks: [
-        { ar: "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ", m: "the path of those You have blessed" },
-        { ar: "غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ", m: "not of those who earned Your anger" },
-        { ar: "وَلَا الضَّالِّينَ", m: "nor of those who went astray" },
+        { ar: "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ", m: "the path of those You have bestowed Favor on" },
+        { ar: "غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ", m: "not (of) those who earned wrath on themselves" },
+        { ar: "وَلَا الضَّالِّينَ", m: "and not (of) those who go astray" },
       ],
       gist: "You're defining the straight path by example — people who were guided rightly — and by contrast, two ways of going wrong.",
       connect: "This ayah gives you a mental picture every time you ask for guidance: not just 'a good path,' but the path of those who got it right.",
@@ -572,8 +577,8 @@ const AYAT = {
       ar: "قُلْ هُوَ اللَّهُ أَحَدٌ",
       chunks: [
         { ar: "قُلْ", m: "Say" },
-        { ar: "هُوَ اللَّهُ", m: "He is Allah" },
-        { ar: "أَحَدٌ", m: "the One" },
+        { ar: "هُوَ اللَّهُ", m: "He, Allah" },
+        { ar: "أَحَدٌ", m: "(is) the One" },
       ],
       gist: "You're commanded to state plainly, when asked who God is, that He is absolutely One.",
       connect: "This is the ayah worth a third of the Quran in reward — it's the single clearest statement of monotheism in the whole book.",
@@ -583,7 +588,7 @@ const AYAT = {
       ar: "اللَّهُ الصَّمَدُ",
       chunks: [
         { ar: "اللَّهُ", m: "Allah" },
-        { ar: "الصَّمَدُ", m: "the Absolute — needed by all, needing none" },
+        { ar: "الصَّمَدُ", m: "the Eternal, the Absolute — needed by all, needing none" },
       ],
       gist: "Everything depends on Him; He depends on nothing.",
       connect: "Whenever you feel dependent on people or circumstances, this word describes the one thing that isn't dependent on anything.",
@@ -592,8 +597,8 @@ const AYAT = {
       n: 3,
       ar: "لَمْ يَلِدْ وَلَمْ يُولَدْ",
       chunks: [
-        { ar: "لَمْ يَلِدْ", m: "He does not give birth" },
-        { ar: "وَلَمْ يُولَدْ", m: "nor was He born" },
+        { ar: "لَمْ يَلِدْ", m: "Not He begets" },
+        { ar: "وَلَمْ يُولَدْ", m: "and not He is begotten" },
       ],
       gist: "He has no offspring and no origin — He's outside the category of things that are born or reproduce.",
       connect: "This directly rules out any claim that God has a literal child.",
@@ -602,8 +607,8 @@ const AYAT = {
       n: 4,
       ar: "وَلَمْ يَكُنْ لَهُ كُفُوًا أَحَدٌ",
       chunks: [
-        { ar: "وَلَمْ يَكُنْ لَهُ", m: "and there is not for Him" },
-        { ar: "كُفُوًا أَحَدٌ", m: "any equal" },
+        { ar: "وَلَمْ يَكُنْ لَهُ", m: "and not is for Him" },
+        { ar: "كُفُوًا أَحَدٌ", m: "equivalent any [one]" },
       ],
       gist: "Nothing and no one is comparable to Him in any way.",
       connect: "This closes the surah the way it opened — with total, uncompromised oneness.",
@@ -613,18 +618,18 @@ const AYAT = {
     { n: 1, ar: "قُلْ أَعُوذُ بِرَبِّ النَّاسِ", chunks: [{ ar: "قُلْ", m: "Say" }, { ar: "أَعُوذُ", m: "I seek refuge" }, { ar: "بِرَبِّ النَّاسِ", m: "in the Lord of mankind" }], gist: "You're opening a plea for protection by naming exactly who you're turning to.", connect: "Say this consciously, not just by habit, the next time you recite it." },
     { n: 2, ar: "مَلِكِ النَّاسِ", chunks: [{ ar: "مَلِكِ", m: "the King" }, { ar: "النَّاسِ", m: "of mankind" }], gist: "You're naming Him again, this time as the true King over people.", connect: "Three names in a row for God — Lord, King, God — each ruling out a different kind of false authority." },
     { n: 3, ar: "إِلَٰهِ النَّاسِ", chunks: [{ ar: "إِلَٰهِ", m: "the God" }, { ar: "النَّاسِ", m: "of mankind" }], gist: "And the God that people actually worship, whether they realize it or not.", connect: "This sets up who has the power to protect you, right before naming the threat." },
-    { n: 4, ar: "مِنْ شَرِّ الْوَسْوَاسِ الْخَنَّاسِ", chunks: [{ ar: "مِنْ شَرِّ", m: "from the evil of" }, { ar: "الْوَسْوَاسِ الْخَنَّاسِ", m: "the retreating whisperer" }], gist: "You're asking for protection specifically from a whisperer that slinks back whenever you remember God.", connect: "Notice 'retreating' — the whisper isn't described as unstoppable, just persistent when you forget." },
-    { n: 5, ar: "الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ", chunks: [{ ar: "الَّذِي يُوَسْوِسُ", m: "who whispers" }, { ar: "فِي صُدُورِ النَّاسِ", m: "into the chests of people" }], gist: "The location of the whisper is named — inside you, not some external event.", connect: "This reframes intrusive, unwanted thoughts as something you can seek refuge from, not something that defines you." },
-    { n: 6, ar: "مِنَ الْجِنَّةِ وَالنَّاسِ", chunks: [{ ar: "مِنَ الْجِنَّةِ", m: "whether from jinn" }, { ar: "وَالنَّاسِ", m: "or from mankind" }], gist: "The whisperer can be unseen or a person — either way, the same refuge applies.", connect: "This is why the surah is recited against both supernatural harm and harmful people." },
+    { n: 4, ar: "مِنْ شَرِّ الْوَسْوَاسِ الْخَنَّاسِ", chunks: [{ ar: "مِنْ شَرِّ", m: "from (the) evil" }, { ar: "الْوَسْوَاسِ الْخَنَّاسِ", m: "of the whisperer, the one who withdraws" }], gist: "You're asking for protection specifically from a whisperer that slinks back whenever you remember God.", connect: "Notice 'withdraws' — the whisper isn't described as unstoppable, just persistent when you forget." },
+    { n: 5, ar: "الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ", chunks: [{ ar: "الَّذِي يُوَسْوِسُ", m: "the one who whispers" }, { ar: "فِي صُدُورِ النَّاسِ", m: "in the breasts of mankind" }], gist: "The location of the whisper is named — inside you, not some external event.", connect: "This reframes intrusive, unwanted thoughts as something you can seek refuge from, not something that defines you." },
+    { n: 6, ar: "مِنَ الْجِنَّةِ وَالنَّاسِ", chunks: [{ ar: "مِنَ الْجِنَّةِ", m: "from the jinn" }, { ar: "وَالنَّاسِ", m: "and men" }], gist: "The whisperer can be unseen or a person — either way, the same refuge applies.", connect: "This is why the surah is recited against both supernatural harm and harmful people." },
   ],
   67: [
     {
       n: 1,
       ar: "تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ",
       chunks: [
-        { ar: "تَبَارَكَ", m: "Blessed / Exalted is He" },
-        { ar: "الَّذِي بِيَدِهِ الْمُلْكُ", m: "in whose hand is all authority" },
-        { ar: "وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", m: "and He is capable of all things" },
+        { ar: "تَبَارَكَ", m: "Blessed is" },
+        { ar: "الَّذِي بِيَدِهِ الْمُلْكُ", m: "He in Whose Hand is the Dominion" },
+        { ar: "وَهُوَ عَلَىٰ كُلِّ شَيْءٍ قَدِيرٌ", m: "and He is over every thing All-Powerful" },
       ],
       gist: "The surah opens by placing all real authority in one place — and pairing it immediately with total capability.",
       connect: "Whenever something feels out of your control, this is the ayah that names exactly whose hand it's actually in.",
@@ -636,7 +641,7 @@ const AYAT = {
       ar: "إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ",
       chunks: [
         { ar: "إِنَّا أَنزَلْنَاهُ", m: "Indeed We sent it down" },
-        { ar: "فِي لَيْلَةِ الْقَدْرِ", m: "on the Night of Decree" },
+        { ar: "فِي لَيْلَةِ الْقَدْرِ", m: "on the Night of Power" },
       ],
       gist: "You're being told exactly when the Quran's revelation began — on one specific, named night.",
       connect: "This is why Muslims search for Laylat al-Qadr in Ramadan's last ten nights — this ayah is the reason it matters.",
@@ -646,7 +651,7 @@ const AYAT = {
       ar: "وَمَا أَدْرَاكَ مَا لَيْلَةُ الْقَدْرِ",
       chunks: [
         { ar: "وَمَا أَدْرَاكَ", m: "And what will make you realize" },
-        { ar: "مَا لَيْلَةُ الْقَدْرِ", m: "what the Night of Decree is" },
+        { ar: "مَا لَيْلَةُ الْقَدْرِ", m: "what the Night of Power is" },
       ],
       gist: "Even the Prophet is asked this rhetorically — the night's value is set up as beyond ordinary comprehension.",
       connect: "When the Quran introduces something this way, it's a signal: pay close attention, what follows is enormous.",
@@ -655,7 +660,7 @@ const AYAT = {
       n: 3,
       ar: "لَيْلَةُ الْقَدْرِ خَيْرٌ مِّنْ أَلْفِ شَهْرٍ",
       chunks: [
-        { ar: "لَيْلَةُ الْقَدْرِ", m: "The Night of Decree" },
+        { ar: "لَيْلَةُ الْقَدْرِ", m: "The Night of Power" },
         { ar: "خَيْرٌ مِّنْ أَلْفِ شَهْرٍ", m: "is better than a thousand months" },
       ],
       gist: "One night outweighs over 83 years of ordinary worship — that's the scale being described.",
@@ -1045,9 +1050,9 @@ const SALAH_MODULES = [
     title: "In Ruku' (bowing)",
     ar: "سُبْحَانَ رَبِّيَ الْعَظِيمِ",
     chunks: [
-      { ar: "سُبْحَانَ", m: "Glory be to", wordAudioUrl: "https://audios.quranwbw.com/words/17/017_001_001.mp3?version=2" }, // 17:1, word 1
+      { ar: "سُبْحَانَ", m: "Exalted is", wordAudioUrl: "https://audios.quranwbw.com/words/17/017_001_001.mp3?version=2" }, // 17:1, word 1
       { ar: "رَبِّيَ", m: "my Lord", wordAudioUrl: "https://audios.quranwbw.com/words/2/002_258_016.mp3?version=2" }, // 2:258, word 16
-      { ar: "الْعَظِيمِ", m: "the Magnificent", wordAudioUrl: "https://audios.quranwbw.com/words/56/056_074_004.mp3?version=2" }, // 56:74, word 4 (genitive form)
+      { ar: "الْعَظِيمِ", m: "the Most Great", wordAudioUrl: "https://audios.quranwbw.com/words/56/056_074_004.mp3?version=2" }, // 56:74, word 4 (genitive form)
     ],
     gist: "Bowing your body, you're declaring God's greatness with your words at the same time.",
     connect: "The posture and the phrase match: you're physically lowered while verbally exalting Him.",
@@ -1095,7 +1100,7 @@ const SALAH_MODULES = [
     title: "In Sujood (prostration)",
     ar: "سُبْحَانَ رَبِّيَ الْأَعْلَىٰ",
     chunks: [
-      { ar: "سُبْحَانَ", m: "Glory be to", wordAudioUrl: "https://audios.quranwbw.com/words/17/017_001_001.mp3?version=2" }, // 17:1, word 1
+      { ar: "سُبْحَانَ", m: "Exalted is", wordAudioUrl: "https://audios.quranwbw.com/words/17/017_001_001.mp3?version=2" }, // 17:1, word 1
       { ar: "رَبِّيَ", m: "my Lord", wordAudioUrl: "https://audios.quranwbw.com/words/2/002_258_016.mp3?version=2" }, // 2:258, word 16
       { ar: "الْأَعْلَىٰ", m: "the Most High", wordAudioUrl: "https://audios.quranwbw.com/words/87/087_001_004.mp3?version=2" }, // 87:1, word 4
     ],
@@ -1581,6 +1586,10 @@ export default function QuranUnderstandingApp() {
   }
 
   /* ---------------- HOME ---------------- */
+  if (view === "qibla") {
+    return <PrayerQiblaScreen goBack={goBack} />;
+  }
+
   if (view === "home") {
     const continueAyah = AYAT[currentSurah]?.[currentAyahIdx];
     const surahMeta = surahDirectory.find((s) => s.id === currentSurah);
@@ -1637,6 +1646,24 @@ export default function QuranUnderstandingApp() {
               sub={`${overallPct}% understood so far`}
               onClick={() => goTo("journeyAll")}
             />
+          </div>
+
+          {/* Qibla + prayer times */}
+          <div
+            onClick={() => goTo("qibla")}
+            style={{
+              marginTop: 22, display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "16px 18px", borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, cursor: "pointer",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ fontSize: 22 }}>🧭</div>
+              <div>
+                <div style={{ ...displaySerif, fontSize: 16, color: T.textHi }}>Qibla & Prayer Times</div>
+                <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 2 }}>Based on your location</div>
+              </div>
+            </div>
+            <span style={{ color: T.gold, fontSize: 18 }}>→</span>
           </div>
 
           {/* Quick review */}
@@ -2031,6 +2058,17 @@ export default function QuranUnderstandingApp() {
                   <div style={{ ...mono, fontSize: 9.5, color: T.textFaint, marginTop: 2 }}>×{d.count}</div>
                 </div>
               ))}
+            </div>
+          </div>
+          <div style={{ width: "100%", marginTop: 24, paddingTop: 16, borderTop: `1px solid ${T.inkLine}` }}>
+            <div style={{ ...bodySans, fontSize: 11, color: T.textFaint, lineHeight: 1.5 }}>
+              Word meanings adapted from the Quranic Arabic Corpus
+              (corpus.quran.com), used with attribution. Recitation
+              audio from verified reciters, everyayah.com, and Hisn
+              al-Muslim — except the word "حَمِدَهُ" in Rising from
+              Ruku', which is AI-generated speech (no real recording
+              of that exact word form exists) rather than a human
+              reciter.
             </div>
           </div>
         </div>
@@ -3329,6 +3367,228 @@ function ReviewWordCard({ ar, meaning, count, audio }) {
       </div>
       <Pill tone="muted">seen ×{count}</Pill>
     </button>
+  );
+}
+
+/* ============================================================
+   QIBLA + PRAYER TIMES
+   Both need the device's location, so they share one screen and
+   one geolocation request. Qibla direction is computed locally
+   (great-circle bearing to the Kaaba — no network needed). Prayer
+   times come from the Aladhan API (api.aladhan.com), a free,
+   no-key-required public prayer-time calculator — not something
+   this app can compute correctly on its own (it depends on solar
+   position + a calculation method), so unlike the Quran/salah
+   content, this one real feature does rely on a live third-party
+   API rather than a bundled data source.
+   ============================================================ */
+const KAABA_LAT = 21.4225;
+const KAABA_LON = 39.8262;
+
+function qiblaBearing(lat, lon) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+  const φ1 = toRad(lat), φ2 = toRad(KAABA_LAT);
+  const Δλ = toRad(KAABA_LON - lon);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const PRAYER_ORDER = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
+
+function formatClock(hhmm) {
+  // Aladhan returns "HH:MM" (24h, sometimes with a trailing
+  // " (TZ)" annotation) — render as a plain 12h clock string.
+  const clean = hhmm.split(" ")[0];
+  const [h, m] = clean.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function PrayerQiblaScreen({ goBack }) {
+  const [status, setStatus] = useState("idle"); // idle | locating | ready | denied | error
+  const [coords, setCoords] = useState(null);
+  const [heading, setHeading] = useState(null); // live device compass, if available
+  const [headingAvailable, setHeadingAvailable] = useState(false);
+  const [timings, setTimings] = useState(null);
+  const [timingsError, setTimingsError] = useState(false);
+
+  function requestLocation() {
+    setStatus("locating");
+    if (!navigator.geolocation) { setStatus("error"); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setStatus("ready");
+      },
+      (err) => setStatus(err.code === err.PERMISSION_DENIED ? "denied" : "error"),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  // Fetch prayer times once we have coordinates.
+  React.useEffect(() => {
+    if (!coords) return;
+    let cancelled = false;
+    setTimingsError(false);
+    fetch(`https://api.aladhan.com/v1/timings?latitude=${coords.lat}&longitude=${coords.lon}&method=2`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.data?.timings) setTimings(data.data.timings);
+        else setTimingsError(true);
+      })
+      .catch(() => { if (!cancelled) setTimingsError(true); });
+    return () => { cancelled = true; };
+  }, [coords]);
+
+  // Best-effort live compass. Desktop browsers and many Android
+  // setups simply never fire this event — that's fine, the screen
+  // still works with the static bearing-from-North reading below.
+  // iOS Safari requires a user gesture to grant motion/orientation
+  // permission, so this is wired to the same button as location.
+  function enableCompass() {
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      DeviceOrientationEvent.requestPermission().then((res) => {
+        if (res === "granted") window.addEventListener("deviceorientation", onOrientation, true);
+      }).catch(() => {});
+    } else {
+      window.addEventListener("deviceorientation", onOrientation, true);
+    }
+  }
+  function onOrientation(e) {
+    const h = e.webkitCompassHeading ?? (e.absolute && e.alpha != null ? 360 - e.alpha : null);
+    if (h != null) { setHeading(h); setHeadingAvailable(true); }
+  }
+  React.useEffect(() => () => window.removeEventListener("deviceorientation", onOrientation, true), []);
+
+  const bearing = coords ? qiblaBearing(coords.lat, coords.lon) : null;
+  const distanceKm = coords ? Math.round(haversineKm(coords.lat, coords.lon, KAABA_LAT, KAABA_LON)) : null;
+  const arrowRotation = bearing != null ? bearing - (headingAvailable ? heading : 0) : 0;
+
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let nextPrayer = null;
+  if (timings) {
+    for (const name of PRAYER_ORDER) {
+      const [h, m] = timings[name].split(" ")[0].split(":").map(Number);
+      if (h * 60 + m > nowMin) { nextPrayer = name; break; }
+    }
+  }
+
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title="Qibla & Prayer Times" onBack={goBack} />
+      <div style={{ padding: "0 20px" }}>
+        {status === "idle" && (
+          <div style={{ marginTop: 20, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, textAlign: "center" }}>
+            <div style={{ fontSize: 30, marginBottom: 8 }}>🧭</div>
+            <div style={{ ...displaySerif, fontSize: 16, color: T.textHi }}>Uses your location</div>
+            <div style={{ ...bodySans, fontSize: 12.5, color: T.textLo, marginTop: 6, lineHeight: 1.5 }}>
+              To point you toward the Kaaba and calculate today's prayer times, this needs your device's location. Nothing is stored or sent anywhere except the prayer-time lookup itself.
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <PrimaryButton onClick={() => { requestLocation(); enableCompass(); }}>Enable location</PrimaryButton>
+            </div>
+          </div>
+        )}
+
+        {status === "locating" && (
+          <div style={{ marginTop: 40, textAlign: "center", ...bodySans, fontSize: 13.5, color: T.textLo }}>Finding your location…</div>
+        )}
+
+        {status === "denied" && (
+          <div style={{ marginTop: 20, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, textAlign: "center" }}>
+            <div style={{ ...bodySans, fontSize: 13.5, color: T.textLo, lineHeight: 1.5 }}>
+              Location access was denied. You'll need to allow it in your browser's site settings for this page, then try again.
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <GhostButton onClick={requestLocation}>Try again</GhostButton>
+            </div>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div style={{ marginTop: 20, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, textAlign: "center" }}>
+            <div style={{ ...bodySans, fontSize: 13.5, color: T.textLo }}>Couldn't get your location. Check your connection and try again.</div>
+            <div style={{ marginTop: 14 }}>
+              <GhostButton onClick={requestLocation}>Try again</GhostButton>
+            </div>
+          </div>
+        )}
+
+        {status === "ready" && coords && (
+          <>
+            {/* Qibla compass */}
+            <div style={{ marginTop: 20, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, textAlign: "center" }}>
+              <div style={{ ...bodySans, fontSize: 11.5, color: T.textLo, letterSpacing: 0.4, textTransform: "uppercase" }}>Qibla direction</div>
+              <div style={{ position: "relative", width: 180, height: 180, margin: "16px auto" }}>
+                <svg width="180" height="180" viewBox="0 0 180 180">
+                  <circle cx="90" cy="90" r="86" fill="none" stroke={T.inkLine} strokeWidth="2" />
+                  <text x="90" y="20" textAnchor="middle" fill={T.textFaint} fontSize="11">N</text>
+                  <text x="90" y="168" textAnchor="middle" fill={T.textFaint} fontSize="11">S</text>
+                  <text x="14" y="94" textAnchor="middle" fill={T.textFaint} fontSize="11">W</text>
+                  <text x="166" y="94" textAnchor="middle" fill={T.textFaint} fontSize="11">E</text>
+                  <g transform={`rotate(${arrowRotation} 90 90)`}>
+                    <line x1="90" y1="90" x2="90" y2="26" stroke={T.gold} strokeWidth="3" strokeLinecap="round" />
+                    <path d="M90 16 L82 32 L98 32 Z" fill={T.gold} />
+                  </g>
+                  <circle cx="90" cy="90" r="4" fill={T.gold} />
+                </svg>
+              </div>
+              <div style={{ ...displaySerif, fontSize: 18, color: T.gold }}>{Math.round(bearing)}° {headingAvailable ? "from where you're facing" : "from North"}</div>
+              <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 4 }}>
+                {headingAvailable
+                  ? "The arrow points at the Kaaba as you move your phone."
+                  : `Your device doesn't expose a live compass here — face North, then turn ${Math.round(bearing)}° clockwise.`}
+                {" "}· {distanceKm.toLocaleString()} km to Makkah
+              </div>
+            </div>
+
+            {/* Prayer times */}
+            <div style={{ marginTop: 16, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}` }}>
+              <div style={{ ...bodySans, fontSize: 11.5, color: T.textLo, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 12 }}>Today's prayer times</div>
+              {timingsError && (
+                <div style={{ ...bodySans, fontSize: 13, color: T.textLo, textAlign: "center", padding: "8px 0" }}>
+                  Couldn't reach the prayer-time service. <span onClick={() => setCoords({ ...coords })} style={{ color: T.gold, cursor: "pointer" }}>Retry</span>
+                </div>
+              )}
+              {!timings && !timingsError && (
+                <div style={{ ...bodySans, fontSize: 13, color: T.textLo, textAlign: "center", padding: "8px 0" }}>Loading…</div>
+              )}
+              {timings && PRAYER_ORDER.map((name) => {
+                const isNext = name === nextPrayer;
+                return (
+                  <div key={name} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 4px", borderBottom: `1px solid ${T.inkLine}`,
+                  }}>
+                    <div style={{ ...bodySans, fontSize: 14, color: isNext ? T.gold : T.textHi, fontWeight: isNext ? 600 : 400 }}>
+                      {isNext && "→ "}{name}
+                    </div>
+                    <div style={{ ...mono, fontSize: 13.5, color: isNext ? T.gold : T.textLo }}>{formatClock(timings[name])}</div>
+                  </div>
+                );
+              })}
+              <div style={{ ...bodySans, fontSize: 10.5, color: T.textFaint, marginTop: 10, textAlign: "center" }}>
+                Calculated by Aladhan (ISNA method) for your current location.
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Screen>
   );
 }
 
