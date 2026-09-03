@@ -4731,71 +4731,100 @@ function PrayerQiblaScreen({ goBack }) {
   //  3. Otherwise: the static "face North, turn X°" reading stays.
   const [compassDenied, setCompassDenied] = useState(false);
   const [compassSource, setCompassSource] = useState(null); // "sensor" | "event" | null — which method is actually feeding the arrow
+  const [compassDebug, setCompassDebug] = useState([]); // visible step-by-step log — this is how we find out what's ACTUALLY happening on a real device instead of guessing
   const sensorRef = React.useRef(null);
+  const debugTimeoutRef = React.useRef(null);
+
+  function logDebug(msg) {
+    setCompassDebug((d) => [...d, msg].slice(-8));
+  }
 
   async function tryAbsoluteOrientationSensor() {
-    if (typeof AbsoluteOrientationSensor === "undefined") return false;
+    if (typeof AbsoluteOrientationSensor === "undefined") {
+      logDebug("AbsoluteOrientationSensor: not supported by this browser");
+      return false;
+    }
     try {
       if (navigator.permissions?.query) {
         const results = await Promise.all(
           ["accelerometer", "magnetometer", "gyroscope"].map((name) =>
-            navigator.permissions.query({ name }).catch(() => ({ state: "granted" }))
+            navigator.permissions.query({ name })
+              .then((r) => { logDebug(`permission ${name}: ${r.state}`); return r; })
+              .catch((err) => { logDebug(`permission ${name}: query failed (${err.message})`); return { state: "granted" }; })
           )
         );
-        if (results.some((r) => r.state === "denied")) return false;
+        if (results.some((r) => r.state === "denied")) {
+          logDebug("AbsoluteOrientationSensor: a required sensor permission is denied");
+          return false;
+        }
       }
       const sensor = new AbsoluteOrientationSensor({ frequency: 10, referenceFrame: "device" });
       sensor.addEventListener("reading", () => {
         const [x, y, z, w] = sensor.quaternion;
-        // Yaw from quaternion (ZYX Euler convention), converted from
-        // the sensor's counter-clockwise-from-device-X-axis system
-        // to a clockwise-from-North compass bearing. If this ever
-        // reads backwards or offset on a real device, the fix is a
-        // sign/offset tweak here, not a different approach.
         const yawRad = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
         const deg = (360 - ((yawRad * 180) / Math.PI + 360) % 360) % 360;
         setHeading(deg);
         setHeadingAvailable(true);
         setCompassSource("sensor");
+        logDebug(`sensor reading: ${Math.round(deg)}°`);
       });
-      sensor.addEventListener("error", () => { sensorRef.current = null; });
+      sensor.addEventListener("error", (e) => {
+        logDebug(`AbsoluteOrientationSensor error: ${e.error?.name || "unknown"} — ${e.error?.message || ""}`);
+        sensorRef.current = null;
+      });
       sensor.start();
       sensorRef.current = sensor;
+      logDebug("AbsoluteOrientationSensor: started, waiting for first reading…");
       return true;
-    } catch {
+    } catch (err) {
+      logDebug(`AbsoluteOrientationSensor: threw — ${err.name}: ${err.message}`);
       return false;
     }
   }
 
   function enableCompass() {
     setCompassDenied(false);
+    setCompassDebug([]);
+    logDebug(`UA: ${navigator.userAgent}`);
     tryAbsoluteOrientationSensor().then((started) => {
-      if (started) return;
-      // Fall back to the older orientation-event APIs.
-      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-        // iOS Safari: must be requested from within a user-gesture
-        // handler, and can be re-requested — this is wired to its
-        // own retry button (not just the very first "Enable location"
-        // tap), since a stacked geolocation+motion permission request
-        // can silently lose the second prompt on some devices.
-        DeviceOrientationEvent.requestPermission().then((res) => {
-          if (res === "granted") {
-            window.addEventListener("deviceorientationabsolute", onOrientation, true);
-            window.addEventListener("deviceorientation", onOrientation, true);
-          } else {
-            setCompassDenied(true);
-          }
-        }).catch(() => setCompassDenied(true));
-      } else {
-        window.addEventListener("deviceorientationabsolute", onOrientation, true);
-        window.addEventListener("deviceorientation", onOrientation, true);
+      if (!started) {
+        logDebug("Falling back to deviceorientation events…");
+        if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+          logDebug("DeviceOrientationEvent.requestPermission exists (iOS-style) — requesting…");
+          DeviceOrientationEvent.requestPermission().then((res) => {
+            logDebug(`requestPermission result: ${res}`);
+            if (res === "granted") {
+              window.addEventListener("deviceorientationabsolute", onOrientation, true);
+              window.addEventListener("deviceorientation", onOrientation, true);
+            } else {
+              setCompassDenied(true);
+            }
+          }).catch((err) => { logDebug(`requestPermission threw: ${err.message}`); setCompassDenied(true); });
+        } else {
+          logDebug("No requestPermission API — attaching event listeners directly");
+          window.addEventListener("deviceorientationabsolute", onOrientation, true);
+          window.addEventListener("deviceorientation", onOrientation, true);
+        }
       }
+      // If nothing has reported a heading within 4s of any path, say
+      // so explicitly instead of leaving the user staring at "waiting".
+      clearTimeout(debugTimeoutRef.current);
+      debugTimeoutRef.current = setTimeout(() => {
+        setHeadingAvailable((cur) => {
+          if (!cur) logDebug("No heading received after 4s — this browser/device isn't reporting orientation data at all.");
+          return cur;
+        });
+      }, 4000);
     });
   }
   function onOrientation(e) {
+    logDebug(`deviceorientation event: absolute=${e.absolute}, alpha=${e.alpha == null ? "null" : Math.round(e.alpha)}, webkitCompassHeading=${e.webkitCompassHeading ?? "n/a"}`);
     const h = e.webkitCompassHeading ?? (e.absolute && e.alpha != null ? 360 - e.alpha : null);
-    if (h != null) setCompassSource("event");
-    if (h != null) { setHeading(h); setHeadingAvailable(true); }
+    if (h != null) {
+      setCompassSource("event");
+      setHeading(h);
+      setHeadingAvailable(true);
+    }
   }
   React.useEffect(() => () => {
     window.removeEventListener("deviceorientationabsolute", onOrientation, true);
@@ -4906,6 +4935,15 @@ function PrayerQiblaScreen({ goBack }) {
                   {compassDenied && (
                     <div style={{ ...bodySans, fontSize: 11, color: T.danger, marginTop: 8, lineHeight: 1.4 }}>
                       Motion/orientation access was denied. Allow it in your browser's site settings for this page, then tap again — or your device may just not support a live compass in the browser, in which case the manual reading above still works.
+                    </div>
+                  )}
+                  {compassDebug.length > 0 && (
+                    <div style={{
+                      marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(0,0,0,0.25)",
+                      textAlign: "left", ...mono, fontSize: 9.5, color: T.textFaint, lineHeight: 1.6,
+                      maxHeight: 140, overflowY: "auto",
+                    }}>
+                      {compassDebug.map((line, i) => <div key={i}>{line}</div>)}
                     </div>
                   )}
                 </div>
