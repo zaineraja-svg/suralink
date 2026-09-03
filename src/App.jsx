@@ -4294,9 +4294,44 @@ function formatClock(hhmm) {
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+// A short list of common cities as a manual fallback when browser
+// geolocation is denied or unavailable — not a replacement for real
+// GPS (it's city-level, not exact), but enough to actually use the
+// Qibla direction and prayer times instead of being blocked.
+const COMMON_CITIES = [
+  { label: "Washington, DC", lat: 38.9072, lon: -77.0369 },
+  { label: "New York, NY", lat: 40.7128, lon: -74.0060 },
+  { label: "Los Angeles, CA", lat: 34.0522, lon: -118.2437 },
+  { label: "Chicago, IL", lat: 41.8781, lon: -87.6298 },
+  { label: "Toronto, ON", lat: 43.6532, lon: -79.3832 },
+  { label: "London, UK", lat: 51.5072, lon: -0.1276 },
+];
+
+function CityPicker({ onPick }) {
+  return (
+    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+      {COMMON_CITIES.map((c) => (
+        <button key={c.label} onClick={() => onPick(c)} style={{
+          ...bodySans, fontSize: 13, padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+          background: T.inkLine, border: "none", color: T.textHi, textAlign: "left",
+        }}>{c.label}</button>
+      ))}
+    </div>
+  );
+}
+
 function PrayerQiblaScreen({ goBack }) {
   const [status, setStatus] = useState("idle"); // idle | locating | ready | denied | error
   const [coords, setCoords] = useState(null);
+  const [isManualLocation, setIsManualLocation] = useState(false);
+  const [showCityPicker, setShowCityPicker] = useState(false);
+
+  function useManualCity(city) {
+    setCoords({ lat: city.lat, lon: city.lon });
+    setIsManualLocation(true);
+    setShowCityPicker(false);
+    setStatus("ready");
+  }
   const [heading, setHeading] = useState(null); // live device compass, if available
   const [headingAvailable, setHeadingAvailable] = useState(false);
   const [timings, setTimings] = useState(null);
@@ -4380,6 +4415,10 @@ function PrayerQiblaScreen({ goBack }) {
             <div style={{ marginTop: 16 }}>
               <PrimaryButton onClick={() => { requestLocation(); enableCompass(); }}>Enable location</PrimaryButton>
             </div>
+            <div style={{ marginTop: 10 }}>
+              <GhostButton onClick={() => setShowCityPicker((v) => !v)}>Use a city instead</GhostButton>
+            </div>
+            {showCityPicker && <CityPicker onPick={useManualCity} />}
           </div>
         )}
 
@@ -4392,23 +4431,34 @@ function PrayerQiblaScreen({ goBack }) {
             <div style={{ ...bodySans, fontSize: 13.5, color: T.textLo, lineHeight: 1.5 }}>
               Location access was denied. You'll need to allow it in your browser's site settings for this page, then try again.
             </div>
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 14, display: "flex", gap: 10, justifyContent: "center" }}>
               <GhostButton onClick={requestLocation}>Try again</GhostButton>
+              <GhostButton onClick={() => setShowCityPicker(true)}>Use a city instead</GhostButton>
             </div>
+            {showCityPicker && <CityPicker onPick={useManualCity} />}
           </div>
         )}
 
         {status === "error" && (
           <div style={{ marginTop: 20, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, textAlign: "center" }}>
             <div style={{ ...bodySans, fontSize: 13.5, color: T.textLo }}>Couldn't get your location. Check your connection and try again.</div>
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 14, display: "flex", gap: 10, justifyContent: "center" }}>
               <GhostButton onClick={requestLocation}>Try again</GhostButton>
+              <GhostButton onClick={() => setShowCityPicker(true)}>Use a city instead</GhostButton>
             </div>
+            {showCityPicker && <CityPicker onPick={useManualCity} />}
           </div>
         )}
 
         {status === "ready" && coords && (
           <>
+            {isManualLocation && (
+              <div style={{ marginTop: 16, ...bodySans, fontSize: 11.5, color: T.textFaint, textAlign: "center" }}>
+                Using an approximate city location, not live GPS.{" "}
+                <span onClick={() => setShowCityPicker((v) => !v)} style={{ color: T.gold, cursor: "pointer" }}>Change</span>
+                {showCityPicker && <CityPicker onPick={useManualCity} />}
+              </div>
+            )}
             {/* Qibla compass */}
             <div style={{ marginTop: 20, padding: 20, borderRadius: 16, background: T.inkRaised, border: `1px solid ${T.inkLine}`, textAlign: "center" }}>
               <div style={{ ...bodySans, fontSize: 11.5, color: T.textLo, letterSpacing: 0.4, textTransform: "uppercase" }}>Qibla direction</div>
