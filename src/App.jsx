@@ -26,19 +26,25 @@ const FontLoader = () => (
    illuminated-parchment card for the Arabic centerpiece,
    antique gold + muted teal as the two accents.
    ============================================================ */
+// "Inside the mosque at night" palette — deep emerald ground instead
+// of indigo, warm mosque-lamp gold as the one accent, everything
+// else (parchment, danger, text tones) shifted just enough to sit
+// naturally on green rather than blue-black. `teal`/`tealSoft` keep
+// their original key names (used all over the app for the "success/
+// understood" tone) but are now a richer masjid-carpet green.
 const T = {
-  ink: "#10131c",
-  inkRaised: "#171b28",
-  inkLine: "#262c3d",
-  parchment: "#F3ECD9",
-  parchmentDim: "#E7DEC6",
+  ink: "#0c1a14",
+  inkRaised: "#132821",
+  inkLine: "#264337",
+  parchment: "#F4EEDA",
+  parchmentDim: "#E9E0C4",
   gold: "#C9A45C",
   goldSoft: "#E7CE93",
-  teal: "#3E7A73",
-  tealSoft: "#5FA79C",
-  textHi: "#F1EEE4",
-  textLo: "#9AA0B4",
-  textFaint: "#5C6178",
+  teal: "#2E7D53",
+  tealSoft: "#6FBE8E",
+  textHi: "#F1EFE2",
+  textLo: "#9BAC9E",
+  textFaint: "#5C7267",
   danger: "#C97A6B",
 };
 
@@ -1172,6 +1178,187 @@ const AYAT = {
     { n: 10, ar: "وَأَمَّا السَّائِلَ فَلَا تَنْهَرْ", chunks: [{ ar: "وَأَمَّا السَّائِلَ", m: "And as for one who asks" }, { ar: "فَلَا تَنْهَرْ", m: "then (do) not repel" }], gist: "The second instruction — don't turn away someone who comes asking for help.", connect: "This mirrors his own past need — having once needed and received, he's told not to refuse someone else's asking." },
     { n: 11, ar: "وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ", chunks: [{ ar: "وَأَمَّا بِنِعْمَةِ", m: "But as for (the) Favor" }, { ar: "رَبِّكَ", m: "(of) your Lord" }, { ar: "فَحَدِّثْ", m: "narrate" }], gist: "The surah's final instruction: speak openly about what God has given you.", connect: "The whole surah moves from private reassurance to public instruction — what you were shown in comfort, you're told to speak about, not hide." },
   ],
+  // The following single/paired ayahs (surahs 21, 27, 17, 20, 3, 25,
+  // 23) exist only to back the "What Do I Say When...?" dua finder
+  // below — sparse entries, same pattern as 67/97 above (a surah can
+  // hold just the ayat actually used). Arabic text for every one of
+  // these was fetched fresh from the Uthmani-script edition via
+  // api.alquran.cloud (not typed from memory) and only cosmetically
+  // normalized (alef-wasla -> plain alef, Uthmani-only print marks
+  // stripped) to match this file's existing typographic style —
+  // never re-worded or re-ordered.
+  21: [
+    {
+      n: 87,
+      ar: "وَذَا النُّونِ إِذ ذَّهَبَ مُغَاضِبًا فَظَنَّ أَن لَّن نَّقْدِرَ عَلَيْهِ فَنَادَىٰ فِي الظُّلُمَاتِ أَن لَّا إِلَٰهَ إِلَّا أَنتَ سُبْحَانَكَ إِنِّي كُنتُ مِنَ الظَّالِمِينَ",
+      chunks: [
+        { ar: "وَذَا النُّونِ", m: "And [remember] the man of the fish [Yunus]" },
+        { ar: "إِذ ذَّهَبَ مُغَاضِبًا", m: "when he went off in anger" },
+        { ar: "فَظَنَّ أَن لَّن نَّقْدِرَ عَلَيْهِ", m: "and thought that We would not decree [hardship] upon him" },
+        { ar: "فَنَادَىٰ فِي الظُّلُمَاتِ", m: "so he called out in the darkness" },
+        { ar: "أَن لَّا إِلَٰهَ إِلَّا أَنتَ", m: "There is no deity except You" },
+        { ar: "سُبْحَانَكَ", m: "exalted are You" },
+        { ar: "إِنِّي كُنتُ مِنَ الظَّالِمِينَ", m: "indeed, I have been of the wrongdoers" },
+      ],
+      duaCoreStart: 4, // the actual words to say start here — the rest is the story around them
+      gist: "In total darkness and distress, the Prophet Yunus (AS) called out with this exact line — not a long speech, just this.",
+      connect: "When everything feels dark and out of your hands, this is the line to reach for.",
+    },
+  ],
+  27: [
+    {
+      n: 19,
+      ar: "فَتَبَسَّمَ ضَاحِكًا مِّن قَوْلِهَا وَقَالَ رَبِّ أَوْزِعْنِي أَنْ أَشْكُرَ نِعْمَتَكَ الَّتِي أَنْعَمْتَ عَلَيَّ وَعَلَىٰ وَالِدَيَّ وَأَنْ أَعْمَلَ صَالِحًا تَرْضَاهُ وَأَدْخِلْنِي بِرَحْمَتِكَ فِي عِبَادِكَ الصَّالِحِينَ",
+      chunks: [
+        { ar: "فَتَبَسَّمَ ضَاحِكًا مِّن قَوْلِهَا", m: "So he smiled, amused at her words" },
+        { ar: "وَقَالَ رَبِّ", m: "and said, \"My Lord" },
+        { ar: "أَوْزِعْنِي أَنْ أَشْكُرَ نِعْمَتَكَ", m: "enable me to be grateful for Your favor" },
+        { ar: "الَّتِي أَنْعَمْتَ عَلَيَّ وَعَلَىٰ وَالِدَيَّ", m: "which You have bestowed upon me and upon my parents" },
+        { ar: "وَأَنْ أَعْمَلَ صَالِحًا تَرْضَاهُ", m: "and to do righteous deeds pleasing to You" },
+        { ar: "وَأَدْخِلْنِي بِرَحْمَتِكَ", m: "and admit me, by Your mercy" },
+        { ar: "فِي عِبَادِكَ الصَّالِحِينَ", m: "among Your righteous servants\"" },
+      ],
+      duaCoreStart: 1,
+      gist: "This is Sulaiman (AS)'s own prayer of gratitude — recognizing a blessing, then asking to actually be able to appreciate it.",
+      connect: "Say this the next time you catch yourself about to take something good for granted.",
+    },
+  ],
+  17: [
+    {
+      n: 24,
+      ar: "وَاخْفِضْ لَهُمَا جَنَاحَ الذُّلِّ مِنَ الرَّحْمَةِ وَقُل رَّبِّ ارْحَمْهُمَا كَمَا رَبَّيَانِي صَغِيرًا",
+      chunks: [
+        { ar: "وَاخْفِضْ لَهُمَا", m: "And lower to them" },
+        { ar: "جَنَاحَ الذُّلِّ مِنَ الرَّحْمَةِ", m: "the wing of humility, out of mercy" },
+        { ar: "وَقُل رَّبِّ", m: "and say, \"My Lord" },
+        { ar: "ارْحَمْهُمَا", m: "have mercy upon them both" },
+        { ar: "كَمَا رَبَّيَانِي صَغِيرًا", m: "as they raised me when I was small\"" },
+      ],
+      duaCoreStart: 2,
+      gist: "A direct instruction on how to treat your parents, paired with the exact words to say for them.",
+      connect: "Say this for your parents, whether they're right there with you or not.",
+    },
+  ],
+  20: [
+    {
+      n: 25,
+      ar: "قَالَ رَبِّ اشْرَحْ لِي صَدْرِي",
+      chunks: [
+        { ar: "قَالَ", m: "He said" },
+        { ar: "رَبِّ", m: "\"My Lord" },
+        { ar: "اشْرَحْ لِي صَدْرِي", m: "expand for me my breast\"" },
+      ],
+      duaCoreStart: 1,
+      gist: "Musa (AS)'s own prayer right before facing Pharaoh — asking first for the emotional capacity to handle what's ahead.",
+      connect: "Say this before the conversation or moment you're dreading.",
+    },
+    {
+      n: 26,
+      ar: "وَيَسِّرْ لِي أَمْرِي",
+      chunks: [
+        { ar: "وَيَسِّرْ لِي", m: "and ease for me" },
+        { ar: "أَمْرِي", m: "my task" },
+      ],
+      duaCoreStart: 0,
+      gist: "The very next line — asking for the task itself to be made easier, not just the nerves around it.",
+      connect: "Pair this with the ayah before it — capacity first, then ease.",
+    },
+    {
+      n: 114,
+      ar: "فَتَعَالَى اللَّهُ الْمَلِكُ الْحَقُّ وَلَا تَعْجَلْ بِالْقُرْآنِ مِن قَبْلِ أَن يُقْضَىٰ إِلَيْكَ وَحْيُهُ وَقُل رَّبِّ زِدْنِي عِلْمًا",
+      chunks: [
+        { ar: "فَتَعَالَى اللَّهُ الْمَلِكُ الْحَقُّ", m: "So exalted is Allah, the Sovereign, the Truth" },
+        { ar: "وَلَا تَعْجَلْ بِالْقُرْآنِ", m: "And do not hasten with the Quran" },
+        { ar: "مِن قَبْلِ أَن يُقْضَىٰ إِلَيْكَ وَحْيُهُ", m: "before its revelation is completed to you" },
+        { ar: "وَقُل رَّبِّ زِدْنِي عِلْمًا", m: "and say, \"My Lord, increase me in knowledge\"" },
+      ],
+      duaCoreStart: 3,
+      gist: "The Prophet himself was taught to ask for more knowledge — this isn't a beginner's dua, it's one meant for a lifetime.",
+      connect: "Say this before you study, take a test, or start learning something new.",
+    },
+  ],
+  3: [
+    {
+      n: 8,
+      ar: "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِن لَّدُنكَ رَحْمَةً إِنَّكَ أَنتَ الْوَهَّابُ",
+      chunks: [
+        { ar: "رَبَّنَا لَا تُزِغْ قُلُوبَنَا", m: "Our Lord, let not our hearts deviate" },
+        { ar: "بَعْدَ إِذْ هَدَيْتَنَا", m: "after You have guided us" },
+        { ar: "وَهَبْ لَنَا مِن لَّدُنكَ رَحْمَةً", m: "and grant us mercy from Yourself" },
+        { ar: "إِنَّكَ أَنتَ الْوَهَّابُ", m: "indeed, You are the Bestower" },
+      ],
+      duaCoreStart: 0,
+      gist: "A prayer for the specific fear of losing your certainty after you've already found it.",
+      connect: "Say this when your faith feels shaky, not just when it feels strong.",
+    },
+    {
+      n: 173,
+      ar: "الَّذِينَ قَالَ لَهُمُ النَّاسُ إِنَّ النَّاسَ قَدْ جَمَعُوا لَكُمْ فَاخْشَوْهُمْ فَزَادَهُمْ إِيمَانًا وَقَالُوا حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ",
+      chunks: [
+        { ar: "الَّذِينَ قَالَ لَهُمُ النَّاسُ", m: "Those to whom people said" },
+        { ar: "إِنَّ النَّاسَ قَدْ جَمَعُوا لَكُمْ فَاخْشَوْهُمْ", m: "indeed, the people have gathered against you, so fear them" },
+        { ar: "فَزَادَهُمْ إِيمَانًا", m: "but it [only] increased them in faith" },
+        { ar: "وَقَالُوا حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ", m: "and they said, \"Allah is sufficient for us, and He is the best Disposer of affairs\"" },
+      ],
+      duaCoreStart: 3,
+      gist: "The reaction of the believers when they were told real danger was gathering against them — faith went up, not down.",
+      connect: "Say this exact line when you find out people are working against you.",
+    },
+  ],
+  25: [
+    {
+      n: 74,
+      ar: "وَالَّذِينَ يَقُولُونَ رَبَّنَا هَبْ لَنَا مِنْ أَزْوَاجِنَا وَذُرِّيَّاتِنَا قُرَّةَ أَعْيُنٍ وَاجْعَلْنَا لِلْمُتَّقِينَ إِمَامًا",
+      chunks: [
+        { ar: "وَالَّذِينَ يَقُولُونَ", m: "And those who say" },
+        { ar: "رَبَّنَا هَبْ لَنَا", m: "\"Our Lord, grant us" },
+        { ar: "مِنْ أَزْوَاجِنَا وَذُرِّيَّاتِنَا قُرَّةَ أَعْيُنٍ", m: "from our spouses and offspring comfort to our eyes" },
+        { ar: "وَاجْعَلْنَا لِلْمُتَّقِينَ إِمَامًا", m: "and make us a leading example for the righteous\"" },
+      ],
+      duaCoreStart: 1,
+      gist: "How the Quran describes the righteous praying for their own families — real comfort, not just piety on paper.",
+      connect: "Say this for your spouse, your kids, or the family you're hoping for.",
+    },
+  ],
+  23: [
+    {
+      n: 97,
+      ar: "وَقُل رَّبِّ أَعُوذُ بِكَ مِنْ هَمَزَاتِ الشَّيَاطِينِ",
+      chunks: [
+        { ar: "وَقُل", m: "And say" },
+        { ar: "رَّبِّ", m: "\"My Lord" },
+        { ar: "أَعُوذُ بِكَ", m: "I seek refuge in You" },
+        { ar: "مِنْ هَمَزَاتِ الشَّيَاطِينِ", m: "from the incitements of the devils" },
+      ],
+      duaCoreStart: 1,
+      gist: "A direct instruction on what to say when you feel provoked toward anger or something you'll regret.",
+      connect: "Say this the moment you feel that push toward reacting badly.",
+    },
+    {
+      n: 98,
+      ar: "وَأَعُوذُ بِكَ رَبِّ أَن يَحْضُرُونِ",
+      chunks: [
+        { ar: "وَأَعُوذُ بِكَ رَبِّ", m: "And I seek refuge in You, my Lord" },
+        { ar: "أَن يَحْضُرُونِ", m: "lest they be present with me\"" },
+      ],
+      duaCoreStart: 0,
+      gist: "The follow-up line — not just protection from the push itself, but from the influence staying near you at all.",
+      connect: "Pair this with the ayah before it as one continuous request.",
+    },
+  ],
+  43: [
+    {
+      n: 67,
+      ar: "الْأَخِلَّاءُ يَوْمَئِذٍ بَعْضُهُمْ لِبَعْضٍ عَدُوٌّ إِلَّا الْمُتَّقِينَ",
+      chunks: [
+        { ar: "الْأَخِلَّاءُ يَوْمَئِذٍ", m: "Close friends, that Day" },
+        { ar: "بَعْضُهُمْ لِبَعْضٍ عَدُوٌّ", m: "will be enemies to one another" },
+        { ar: "إِلَّا الْمُتَّقِينَ", m: "except the righteous" },
+      ],
+      gist: "A direct warning: closeness now means nothing on its own — only friendships built on righteousness actually last.",
+      connect: "Worth asking of anyone close to you: is this a bond that would survive being tested?",
+    },
+  ],
 };
 
 // Salah phrase modules for Journey 1.
@@ -1489,6 +1676,174 @@ const SALAH_MODULES = [
 ];
 
 /* ============================================================
+   "WHAT DO I SAY WHEN...?" — situational dua finder
+   Every entry points at a real ayah (or ayah pair) already sitting
+   in AYAT above — no separate content pipeline, no new audio
+   sourcing: real recitation (single ayah via playRecitation, a
+   pair via playRecitationRange) and real per-word audio both come
+   free from the exact same infrastructure the rest of the app
+   already uses. `duaCoreStart` (only set on the newly-added ayahs
+   above, where the full ayah includes narrative framing) marks
+   which chunk index the actual words-to-say start at, so the UI
+   can point to it without ever hiding or trimming the real ayah.
+   ============================================================ */
+const DUA_SITUATIONS = [
+  { id: "hardship", icon: "😰", label: "Everything feels overwhelming", surahId: 94, ayahStart: 5, ayahEnd: 6 },
+  { id: "envy", icon: "🧿", label: "You feel surrounded by envy or bad energy", surahId: 113, ayahStart: 1, ayahEnd: 5 },
+  { id: "whispers", icon: "🗣️", label: "People are talking behind your back", surahId: 114, ayahStart: 1, ayahEnd: 6 },
+  { id: "guidance", icon: "🧭", label: "You don't know what to do", surahId: 1, ayahStart: 6, ayahEnd: 6 },
+  { id: "distress", icon: "🌑", label: "You're in real distress, everything feels dark", surahId: 21, ayahStart: 87, ayahEnd: 87 },
+  { id: "gratitude", icon: "🤲", label: "You want to actually feel grateful", surahId: 27, ayahStart: 19, ayahEnd: 19 },
+  { id: "parents", icon: "👨‍👩‍👧", label: "Praying for your parents", surahId: 17, ayahStart: 24, ayahEnd: 24 },
+  { id: "nervous", icon: "😬", label: "You're dreading something ahead of you", surahId: 20, ayahStart: 25, ayahEnd: 26 },
+  { id: "knowledge", icon: "📚", label: "Before an exam or learning something new", surahId: 20, ayahStart: 114, ayahEnd: 114 },
+  { id: "steadfast", icon: "🕯️", label: "Your faith feels shaky", surahId: 3, ayahStart: 8, ayahEnd: 8 },
+  { id: "family", icon: "💞", label: "Praying for your spouse or family", surahId: 25, ayahStart: 74, ayahEnd: 74 },
+  { id: "plotted", icon: "🛡️", label: "You found out people are plotting against you", surahId: 3, ayahStart: 173, ayahEnd: 173 },
+  { id: "anger", icon: "🔥", label: "You feel that push toward anger", surahId: 23, ayahStart: 97, ayahEnd: 98 },
+  { id: "newstart", icon: "🌱", label: "Starting something new", surahId: 1, ayahStart: 1, ayahEnd: 1 },
+  { id: "badcompany", icon: "🐍", label: "Not sure who around you is really for you", surahId: 43, ayahStart: 67, ayahEnd: 67 },
+];
+
+function DuaFinderScreen({ progress, onBack, onMemorize }) {
+  const [search, setSearch] = useState("");
+  const [activeId, setActiveId] = useState(null);
+  const [reciting, setReciting] = useState(false);
+  const [audioError, setAudioError] = useState(false);
+
+  const filtered = DUA_SITUATIONS.filter((s) => s.label.toLowerCase().includes(search.toLowerCase()));
+  const active = DUA_SITUATIONS.find((s) => s.id === activeId);
+  const activeAyat = active ? (AYAT[active.surahId] || []).filter((a) => a.n >= active.ayahStart && a.n <= active.ayahEnd) : [];
+  const surahMeta = active ? surahDirectory.find((s) => s.id === active.surahId) : null;
+
+  React.useEffect(() => {
+    setReciting(false);
+    setAudioError(false);
+    return () => stopRecitation();
+  }, [activeId]);
+
+  function toggleRecitation() {
+    if (!active) return;
+    if (reciting) { stopRecitation(); setReciting(false); return; }
+    setAudioError(false);
+    if (active.ayahStart === active.ayahEnd) {
+      playRecitation({
+        surahId: active.surahId, ayahNum: active.ayahStart,
+        onStart: () => setReciting(true), onEnd: () => setReciting(false), onError: () => setAudioError(true),
+      });
+    } else {
+      playRecitationRange({
+        surahId: active.surahId, ayahStart: active.ayahStart, ayahEnd: active.ayahEnd, loops: 1,
+        onEnd: () => setReciting(false), onError: () => setAudioError(true),
+      });
+      setReciting(true);
+    }
+  }
+
+  if (active) {
+    return (
+      <Screen>
+        <FontLoader />
+        <TopBar title="What Do I Say When...?" onBack={() => setActiveId(null)} />
+        <div style={{ padding: "0 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 26 }}>{active.icon}</div>
+            <div style={{ ...displaySerif, fontSize: 17, color: T.textHi, fontStyle: "italic" }}>{active.label}</div>
+          </div>
+          {activeAyat.map((ayah) => {
+            const coreStart = ayah.duaCoreStart ?? 0;
+            return (
+              <div key={ayah.n} style={{
+                background: `linear-gradient(180deg, ${T.parchment}, ${T.parchmentDim})`,
+                borderRadius: 20, padding: "26px 20px", textAlign: "center", marginBottom: 14,
+                boxShadow: "0 20px 40px -20px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(201,164,92,0.4)",
+              }}>
+                <div dir="rtl" style={{ ...arabicFont, fontSize: 24, lineHeight: 2.1 }}>
+                  {ayah.chunks.map((c, i) => (
+                    <span key={i} style={{ color: i >= coreStart ? "#26201a" : "rgba(38,32,26,0.45)", fontWeight: i >= coreStart ? 600 : 400 }}>
+                      {c.ar}{i < ayah.chunks.length - 1 ? " " : ""}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ ...bodySans, fontSize: 12, color: "#6b5a3d", marginTop: 10, lineHeight: 1.6 }}>
+                  {ayah.chunks.slice(coreStart).map((c) => c.m).join(" ")}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+            <button
+              onClick={toggleRecitation}
+              style={{
+                ...iconBtnStyle, width: 46, height: 46, borderRadius: 99,
+                background: audioError ? "transparent" : T.gold, borderColor: audioError ? T.danger : T.gold,
+                boxShadow: reciting ? "0 0 0 6px rgba(201,164,92,0.16)" : "none",
+              }}
+            >
+              {audioError ? <RetryIcon color={T.danger} /> : <PlayPauseIcon playing={reciting} />}
+            </button>
+          </div>
+          <div style={{ ...bodySans, fontSize: 12, color: audioError ? T.danger : T.textFaint, textAlign: "center", marginBottom: 18 }}>
+            {audioError ? "Couldn't play — tap to retry" : reciting ? "Playing…" : "Tap to hear real recitation"}
+          </div>
+          <div style={{ padding: 16, borderRadius: 14, background: T.inkRaised, border: `1px solid ${T.inkLine}`, marginBottom: 14 }}>
+            <div style={{ ...bodySans, fontSize: 11.5, color: T.textFaint, marginBottom: 6 }}>WHY THIS ONE</div>
+            <div style={{ ...bodySans, fontSize: 13.5, color: T.textHi, lineHeight: 1.6 }}>{activeAyat[0]?.gist}</div>
+          </div>
+          <div style={{ ...bodySans, fontSize: 11.5, color: T.textFaint, marginBottom: 16 }}>
+            {surahMeta?.nameEn} · Ayah{active.ayahEnd > active.ayahStart ? "s" : ""} {active.ayahStart}{active.ayahEnd > active.ayahStart ? `–${active.ayahEnd}` : ""}
+          </div>
+          {onMemorize && (
+            <GhostButton onClick={() => onMemorize(active)} style={{ width: "100%", textAlign: "center", justifyContent: "center", borderColor: T.gold, color: T.gold }}>
+              Memorize this
+            </GhostButton>
+          )}
+        </div>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title="What Do I Say When...?" onBack={onBack} />
+      <div style={{ padding: "0 20px" }}>
+        <p style={{ ...bodySans, fontSize: 13, color: T.textLo, lineHeight: 1.6, margin: "4px 0 16px" }}>
+          Real ayat from the Quran, matched to real moments — not a claim, just what's actually there.
+        </p>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search a feeling or situation…"
+          style={{
+            width: "100%", ...bodySans, fontSize: 14, padding: "12px 14px", borderRadius: 12,
+            background: T.inkRaised, border: `1px solid ${T.inkLine}`, color: T.textHi, marginBottom: 14, outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered.map((s) => (
+            <div key={s.id} onClick={() => setActiveId(s.id)} style={{
+              display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 14,
+              background: T.inkRaised, border: `1px solid ${T.inkLine}`, cursor: "pointer",
+            }}>
+              <div style={{ fontSize: 22 }}>{s.icon}</div>
+              <div style={{ ...bodySans, fontSize: 14, color: T.textHi, flex: 1 }}>{s.label}</div>
+              <span style={{ color: T.gold, fontSize: 16 }}>→</span>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ ...bodySans, fontSize: 13, color: T.textFaint, textAlign: "center", padding: "20px 0" }}>
+              Nothing matches yet — more situations are being added.
+            </div>
+          )}
+        </div>
+      </div>
+    </Screen>
+  );
+}
+
+/* ============================================================
    SMALL UI PRIMITIVES
    ============================================================ */
 
@@ -1549,7 +1904,7 @@ function IlluminationStar({ pct, size = 132, label, sub }) {
 function Pill({ children, tone = "gold", style }) {
   const tones = {
     gold: { bg: "rgba(201,164,92,0.14)", fg: T.goldSoft, border: "rgba(201,164,92,0.35)" },
-    teal: { bg: "rgba(95,167,156,0.14)", fg: T.tealSoft, border: "rgba(95,167,156,0.35)" },
+    teal: { bg: "rgba(46,125,83,0.14)", fg: T.tealSoft, border: "rgba(46,125,83,0.35)" },
     muted: { bg: "rgba(255,255,255,0.04)", fg: T.textLo, border: T.inkLine },
   };
   const c = tones[tone];
@@ -1611,7 +1966,7 @@ function Screen({ children }) {
   return (
     <div style={{
       width: "100%", maxWidth: 430, margin: "0 auto", minHeight: "100vh",
-      background: `radial-gradient(1200px 500px at 50% -10%, #1a2033 0%, ${T.ink} 55%)`,
+      background: `radial-gradient(1200px 500px at 50% -10%, #1c3a2c 0%, ${T.ink} 55%)`,
       color: T.textHi, ...bodySans, paddingBottom: 90, position: "relative",
     }}>
       {children}
@@ -2048,6 +2403,18 @@ export default function QuranUnderstandingApp() {
     return <PrayerQiblaScreen goBack={goBack} />;
   }
 
+  if (view === "duaFinder") {
+    return <DuaFinderScreen onBack={goBack} onMemorize={(situation) => {
+      const ayat = (AYAT[situation.surahId] || []).filter((a) => a.n >= situation.ayahStart && a.n <= situation.ayahEnd);
+      if (!ayat.length) return;
+      const chunk = { surahId: situation.surahId, ayahStart: situation.ayahStart, ayahEnd: situation.ayahEnd, ayat, text: ayat.map((a) => a.ar).join(" ") };
+      const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
+      setMemorizeSessionChunks([]);
+      setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
+      goTo("memorizeLearn");
+    }} />;
+  }
+
   if (view === "memorizeSurahList") {
     return <MemorizeSurahListScreen items={memorization.items} onBack={goBack}
       onPickSurah={(surahId) => { setMemorizeSource({ surahId }); goTo("memorizeChunkList"); }} />;
@@ -2111,7 +2478,7 @@ export default function QuranUnderstandingApp() {
             }}
             style={{
               marginTop: 22, borderRadius: 20, padding: 20, cursor: "pointer",
-              background: `linear-gradient(150deg, ${T.inkRaised}, #1c2236)`,
+              background: `linear-gradient(150deg, ${T.inkRaised}, #1a3226)`,
               border: `1px solid ${T.inkLine}`, position: "relative", overflow: "hidden",
             }}
           >
@@ -2144,6 +2511,26 @@ export default function QuranUnderstandingApp() {
               sub={`${overallPct}% understood so far`}
               onClick={() => goTo("journeyAll")}
             />
+          </div>
+
+          {/* What Do I Say When...? — featured, above Qibla */}
+          <div
+            onClick={() => goTo("duaFinder")}
+            style={{
+              marginTop: 22, borderRadius: 16, padding: "16px 18px", cursor: "pointer",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: `linear-gradient(135deg, rgba(201,164,92,0.16), rgba(46,125,83,0.06))`,
+              border: `1px solid rgba(201,164,92,0.4)`,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ fontSize: 22 }}>🤲</div>
+              <div>
+                <div style={{ ...displaySerif, fontSize: 16, color: T.gold }}>What Do I Say When...?</div>
+                <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 2 }}>Real duas for real moments</div>
+              </div>
+            </div>
+            <span style={{ color: T.gold, fontSize: 18 }}>→</span>
           </div>
 
           {/* Qibla + prayer times */}
@@ -2257,7 +2644,7 @@ export default function QuranUnderstandingApp() {
                   style={{
                     display: "flex", justifyContent: "space-between", alignItems: "center",
                     padding: "16px 16px", borderRadius: 16, background: T.inkRaised,
-                    border: `1px solid ${done ? "rgba(95,167,156,0.4)" : T.inkLine}`, cursor: "pointer",
+                    border: `1px solid ${done ? "rgba(46,125,83,0.4)" : T.inkLine}`, cursor: "pointer",
                   }}
                 >
                   <div>
@@ -2360,7 +2747,7 @@ export default function QuranUnderstandingApp() {
               onClick={() => goTo("surahQuiz")}
               style={{
                 display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", borderRadius: 16, marginBottom: 16,
-                background: `linear-gradient(150deg, rgba(201,164,92,0.14), rgba(95,167,156,0.08))`,
+                background: `linear-gradient(150deg, rgba(201,164,92,0.14), rgba(46,125,83,0.08))`,
                 border: `1px solid rgba(201,164,92,0.4)`, cursor: "pointer",
               }}
             >
@@ -3055,8 +3442,8 @@ function QuizFeedback({ correct, explanation, reducedMotion }) {
   return (
     <div style={{
       marginTop: 16, padding: 14, borderRadius: 14,
-      background: correct ? "rgba(95,167,156,0.10)" : "rgba(201,122,107,0.10)",
-      border: `1px solid ${correct ? "rgba(95,167,156,0.35)" : "rgba(201,122,107,0.35)"}`,
+      background: correct ? "rgba(46,125,83,0.10)" : "rgba(201,122,107,0.10)",
+      border: `1px solid ${correct ? "rgba(46,125,83,0.35)" : "rgba(201,122,107,0.35)"}`,
       animation: reducedMotion ? "none" : "quizPop 0.3s ease",
     }}>
       <div style={{ ...bodySans, fontWeight: 600, fontSize: 14, color: correct ? T.tealSoft : T.textHi, marginBottom: correct ? 0 : 4 }}>
@@ -3071,7 +3458,7 @@ function QuizOptionButton({ label, status, rtl, onClick, reducedMotion }) {
   const styles = {
     idle: { bg: T.inkRaised, border: T.inkLine },
     selected: { bg: "rgba(201,164,92,0.10)", border: T.gold },
-    correct: { bg: "rgba(95,167,156,0.16)", border: T.teal },
+    correct: { bg: "rgba(46,125,83,0.16)", border: T.teal },
     incorrect: { bg: "rgba(201,122,107,0.16)", border: T.danger },
   }[status];
   return (
@@ -3212,7 +3599,7 @@ function QuestionTapAyah({ q, phase, onAnswer, reducedMotion }) {
           const s = {
             idle: { bg: "transparent", border: "transparent" },
             selected: { bg: "rgba(201,164,92,0.12)", border: T.gold },
-            correct: { bg: "rgba(95,167,156,0.18)", border: T.teal },
+            correct: { bg: "rgba(46,125,83,0.18)", border: T.teal },
             incorrect: { bg: "rgba(201,122,107,0.18)", border: T.danger },
           }[status];
           return (
@@ -3808,7 +4195,7 @@ function LessonFlow({ ayah, title, subtitle, audioRef, onExit, onFinish, onWordS
         {step === 4 && (
           <>
             <StepLabel n={6} text="Connect it" />
-            <div style={{ marginTop: 14, padding: 18, borderRadius: 16, background: `linear-gradient(150deg, rgba(201,164,92,0.1), rgba(95,167,156,0.06))`, border: `1px solid rgba(201,164,92,0.3)` }}>
+            <div style={{ marginTop: 14, padding: 18, borderRadius: 16, background: `linear-gradient(150deg, rgba(201,164,92,0.1), rgba(46,125,83,0.06))`, border: `1px solid rgba(201,164,92,0.3)` }}>
               <div style={{ ...bodySans, fontSize: 11.5, color: T.gold, marginBottom: 8, letterSpacing: 0.3 }}>WHAT THIS MEANS FOR YOU</div>
               <div style={{ ...displaySerif, fontSize: 17, color: T.textHi, lineHeight: 1.5, fontStyle: "italic" }}>{ayah.connect}</div>
             </div>
@@ -3874,6 +4261,60 @@ function speechRecognitionSupported() {
   return typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
+// A rough visual placeholder for an unspoken word — a run of tatweel
+// (Arabic kashida) dashes, roughly scaled to the real word's length,
+// so the blank page has the right "shape" before anything fills in.
+function arabicWordPlaceholder(word) {
+  const len = Math.max(2, Math.min(7, word.replace(/[^ء-ي]/g, "").length || 3));
+  return "ـ".repeat(len);
+}
+
+// The Tartil-style "blank Quran page that fills in as you recite"
+// display. `wordResults` (from recallMatch.matchRecall, recomputed
+// live on every speech-recognition update) is aligned index-for-
+// index with `expectedWords` — a word is only ever revealed once
+// recognition has actually matched (or misheard) something against
+// its position; everything after the furthest point reached stays a
+// blank placeholder, exactly like an empty manuscript line waiting
+// to be written.
+function QuranPageReveal({ expectedWords, wordResults, listening }) {
+  const nextIndex = wordResults ? wordResults.findIndex((w) => !w) : 0;
+  return (
+    <div style={{
+      background: `linear-gradient(180deg, ${T.parchment}, ${T.parchmentDim})`,
+      borderRadius: 20, padding: "26px 20px", textAlign: "center", minHeight: 120,
+      boxShadow: "0 20px 40px -20px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(201,164,92,0.4)",
+      position: "relative", overflow: "hidden",
+    }}>
+      <div style={{ position: "absolute", top: 8, left: 8, right: 8, bottom: 8, border: `1px solid rgba(201,164,92,0.35)`, borderRadius: 12, pointerEvents: "none" }} />
+      <div dir="rtl" style={{ ...arabicFont, fontSize: 24, lineHeight: 2.2, display: "flex", flexWrap: "wrap", gap: "2px 10px", justifyContent: "center" }}>
+        {expectedWords.map((w, i) => {
+          const r = wordResults?.[i];
+          const isNext = listening && i === nextIndex;
+          if (r?.status === "correct") {
+            return <span key={i} style={{ color: "#26201a", transition: "color 0.2s ease" }}>{w}</span>;
+          }
+          if (r?.status === "wrong") {
+            return (
+              <span key={i} style={{ color: T.danger, textDecoration: "underline wavy", textUnderlineOffset: 3 }}>
+                {w}
+              </span>
+            );
+          }
+          return (
+            <span key={i} style={{
+              color: "rgba(38,32,26,0.24)",
+              paddingBottom: isNext ? 1 : 0,
+              borderBottom: isNext ? `2px solid ${T.gold}` : "2px solid transparent",
+              transition: "border-color 0.2s ease",
+            }}>{arabicWordPlaceholder(w)}</span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function RecallInput({ expectedText, onResult }) {
   const supported = useMemo(() => speechRecognitionSupported(), []);
   const [mode, setMode] = useState(supported ? "speech" : "text");
@@ -3887,7 +4328,16 @@ function RecallInput({ expectedText, onResult }) {
   React.useEffect(() => () => { recognitionRef.current?.stop(); }, []);
 
   const liveHeard = (finalHeard + " " + interimHeard).trim();
-  const liveTranslit = useMemo(() => (liveHeard ? transliterate(liveHeard) : ""), [liveHeard]);
+  const expectedWords = useMemo(() => expectedText.trim().split(/\s+/), [expectedText]);
+  // Recomputed on every recognition update (final AND interim, so
+  // the page fills in continuously rather than jumping only when a
+  // result finalizes) — matchRecall's own word alignment is what
+  // decides which expected words are "reached" yet, reused as-is
+  // rather than a separate live-only matcher.
+  const liveWordResults = useMemo(
+    () => (liveHeard ? matchRecall(expectedText, liveHeard).wordResults : null),
+    [liveHeard, expectedText]
+  );
 
   function finishWith(transcript) {
     setListening(false);
@@ -3910,7 +4360,16 @@ function RecallInput({ expectedText, onResult }) {
     rec.lang = "ar-SA";
     rec.interimResults = true; // live "as you go" feedback — this was previously off, which is why nothing visibly happened while listening
     rec.continuous = true;     // keep listening through natural pauses in the ayah instead of cutting off after the first one
-    rec.maxAlternatives = 1;
+    // Multiple alternatives per result, not just the engine's single
+    // top guess — Arabic recitation has a lot of near-homophones the
+    // STT engine ranks close together, and its #1 guess is often not
+    // the one that actually matches real Quran text. Whenever a
+    // result finalizes, every alternative is scored against the
+    // expected ayah (via the same matchRecall used for grading) and
+    // whichever one aligns best is kept — a cheap, real accuracy win
+    // since we actually know what the "correct answer" should sound
+    // like, unlike a generic dictation use case.
+    rec.maxAlternatives = 5;
     // Plain closure variables, not state — onend needs the truly
     // latest value the instant recognition stops, and reading React
     // state from inside this closure would be stale (captured at
@@ -3920,9 +4379,21 @@ function RecallInput({ expectedText, onResult }) {
     rec.onresult = (e) => {
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const chunk = e.results[i][0]?.transcript || "";
-        if (e.results[i].isFinal) finalAcc = (finalAcc + " " + chunk).trim();
-        else interim += chunk;
+        const result = e.results[i];
+        if (result.isFinal) {
+          let bestChunk = result[0]?.transcript || "";
+          if (result.length > 1) {
+            let bestScore = -1;
+            for (let a = 0; a < result.length; a++) {
+              const candidate = result[a]?.transcript || "";
+              const acc = matchRecall(expectedText, (finalAcc + " " + candidate).trim()).accuracy;
+              if (acc > bestScore) { bestScore = acc; bestChunk = candidate; }
+            }
+          }
+          finalAcc = (finalAcc + " " + bestChunk).trim();
+        } else {
+          interim += result[0]?.transcript || "";
+        }
       }
       interimAcc = interim;
       setFinalHeard(finalAcc);
@@ -3961,27 +4432,9 @@ function RecallInput({ expectedText, onResult }) {
   if (mode === "speech") {
     return (
       <div style={{ textAlign: "center" }}>
-        {(listening || liveHeard) && (
-          <div style={{
-            marginBottom: 16, padding: "16px 14px", borderRadius: 14, minHeight: 70,
-            background: T.inkRaised, border: `1px solid ${listening ? T.gold : T.inkLine}`,
-          }}>
-            {liveHeard ? (
-              <>
-                <div dir="rtl" style={{ ...arabicFont, fontSize: 22, color: T.parchment, lineHeight: 1.7 }}>
-                  {finalHeard}{interimHeard && <span style={{ opacity: 0.55 }}> {interimHeard}</span>}
-                </div>
-                {liveTranslit && (
-                  <div style={{ ...mono, fontSize: 12, color: T.textFaint, marginTop: 8 }}>{liveTranslit}</div>
-                )}
-              </>
-            ) : (
-              <div style={{ ...bodySans, fontSize: 12.5, color: T.textFaint, fontStyle: "italic" }}>
-                Listening for your voice…
-              </div>
-            )}
-          </div>
-        )}
+        <div style={{ marginBottom: 16 }}>
+          <QuranPageReveal expectedWords={expectedWords} wordResults={liveWordResults} listening={listening} />
+        </div>
         <button
           onClick={listening ? stopListening : startListening}
           style={{
@@ -4918,16 +5371,17 @@ function PrayerQiblaScreen({ goBack }) {
                   <g transform={`rotate(${arrowRotation} 90 90)`}>
                     <line x1="90" y1="90" x2="90" y2="26" stroke={T.gold} strokeWidth="3" strokeLinecap="round" />
                     <path d="M90 16 L82 32 L98 32 Z" fill={T.gold} />
+                    <text x="90" y="14" textAnchor="middle" fontSize="16" transform={`rotate(${-arrowRotation} 90 16)`}>🕋</text>
                   </g>
                   <circle cx="90" cy="90" r="4" fill={T.gold} />
                 </svg>
               </div>
-              <div style={{ ...displaySerif, fontSize: 18, color: T.gold }}>{Math.round(bearing)}° {headingAvailable ? "from where you're facing" : "from North"}</div>
+              <div style={{ ...displaySerif, fontSize: 18, color: T.gold }}>This is the Kaaba</div>
               <div style={{ ...bodySans, fontSize: 12, color: T.textLo, marginTop: 4 }}>
                 {headingAvailable
                   ? "The arrow points at the Kaaba as you move your phone."
-                  : `Face North, then turn ${Math.round(bearing)}° clockwise.`}
-                {" "}· {distanceKm.toLocaleString()} km to Makkah
+                  : "Face North, then turn your body until the arrow points straight up."}
+                {" "}· {distanceKm.toLocaleString()} km away
               </div>
               {!headingAvailable && (
                 <div style={{ marginTop: 12 }}>
