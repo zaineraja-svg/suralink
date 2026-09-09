@@ -1977,6 +1977,14 @@ function Screen({ children }) {
       width: "100%", maxWidth: 430, margin: "0 auto", minHeight: "100vh",
       background: `radial-gradient(1200px 500px at 50% -10%, #1c3a2c 0%, ${T.ink} 55%)`,
       color: T.textHi, ...bodySans, paddingBottom: 90, position: "relative",
+      // On a notched/Dynamic-Island iPhone (wrapped as the native app —
+      // a plain mobile browser tab already reserves this space on its
+      // own), the very top of the screen sits right under the status
+      // bar without this. That's what made the back arrow in TopBar
+      // visually overlap the status bar and become untappable —
+      // this pushes all screen content below the real safe area
+      // instead of assuming there isn't one.
+      paddingTop: "env(safe-area-inset-top)",
     }}>
       {children}
     </div>
@@ -2442,7 +2450,7 @@ export default function QuranUnderstandingApp() {
             })}
           </div>
         </div>
-        <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: 20, background: `linear-gradient(0deg, ${T.ink} 60%, transparent)` }}>
+        <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "20px 20px calc(20px + env(safe-area-inset-bottom))", background: `linear-gradient(0deg, ${T.ink} 60%, transparent)` }}>
           <PrimaryButton
             disabled={!prefs[step.key]}
             onClick={() => {
@@ -5646,7 +5654,8 @@ function BottomNav({ view, goTo }) {
   return (
     <div style={{
       position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430,
-      display: "flex", background: T.inkRaised, borderTop: `1px solid ${T.inkLine}`, padding: "10px 6px 14px",
+      display: "flex", background: T.inkRaised, borderTop: `1px solid ${T.inkLine}`,
+      padding: "10px 6px calc(14px + env(safe-area-inset-bottom))",
     }}>
       {items.map(([key, icon, label]) => {
         const active = view === key;
