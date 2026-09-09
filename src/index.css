@@ -1,1 +1,24 @@
-/* intentionally empty — App.jsx does all its own styling inline */
+/* App.jsx does all its own layout/styling inline — this file only
+   fixes what inline styles on the React root can't reach: the real
+   <html>/<body> behind it. Without this, anything beyond the
+   Screen component's own box (a notch/Dynamic Island area, the
+   home-indicator strip, or any rounding/timing gap before React's
+   first paint) shows the browser/webview's own default white
+   background instead of the app's actual ink-dark ground — that's
+   the white border seen on a real device that a desktop browser
+   tab never reveals (a normal browser tab already sits on a body
+   with no visible edges to expose).
+
+   #0c1a14 mirrors T.ink from App.jsx by hand (this file can't
+   import a JS constant) — keep the two in sync if that palette
+   value ever changes again. */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: #0c1a14;
+}
+#root {
+  min-height: 100vh;
+}

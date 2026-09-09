@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
+import './index.css'
 
 // A crash anywhere in the tree previously left the user staring at
 // a blank white page with no way back except a reload — and before

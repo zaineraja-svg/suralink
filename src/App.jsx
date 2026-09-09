@@ -2322,10 +2322,13 @@ export default function QuranUnderstandingApp() {
         products.forEach((p) => { byId[p.identifier] = p; });
         setRcProducts({ monthly: byId[RC_PRODUCT_IDS.monthly] || null, annual: byId[RC_PRODUCT_IDS.annual] || null });
         listenerId = await Purchases.addCustomerInfoUpdateListener((info) => applyCustomerInfo(info));
-      } catch {
+      } catch (err) {
         // Configure/network failure — creator codes still work fully
         // offline; this only means no live store prices/purchases
-        // until it succeeds (e.g. tapping the paywall again later).
+        // until it succeeds. Surfaced (not swallowed silently) so
+        // "the buy button does nothing" has an actual visible reason
+        // on screen instead of just looking broken.
+        if (!cancelled) setRcError(`Store setup: ${err?.message || "couldn't load — check your connection and reopen this screen."}`);
       }
     })();
     return () => {
@@ -2337,7 +2340,15 @@ export default function QuranUnderstandingApp() {
 
   async function purchasePlan(planKey) {
     const product = rcProducts?.[planKey];
-    if (!product) return false;
+    if (!product) {
+      // Silently doing nothing here was the actual bug — this is
+      // what it looked like when RevenueCat never got real product
+      // data back (e.g. the subscription isn't in "Ready to Submit"
+      // state in App Store Connect yet, which sandbox testing
+      // requires) rather than the button being broken outright.
+      setRcError("These plans aren't available to purchase yet — try again in a bit.");
+      return false;
+    }
     setRcError(null);
     setRcPurchasing(true);
     try {
