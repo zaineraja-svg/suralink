@@ -18,6 +18,16 @@ import { serializeAppState, deserializeAppState, STORAGE_KEY } from "./persist.j
 // substitute.
 import { Capacitor } from "@capacitor/core";
 import { SpeechRecognition as NativeSpeechRecognition } from "@capacitor-community/speech-recognition";
+import { Purchases } from "@revenuecat/purchases-capacitor";
+
+// Real subscription config — set up in App Store Connect (the two
+// products) and RevenueCat (the API key + the "unlimited" entitlement
+// both products are attached to). Never touched on the plain website
+// (isNativeApp() is always false there) — only the native iOS build
+// actually configures or purchases anything through this.
+const REVENUECAT_API_KEY_IOS = "appl_aUMaZeSGyXqXVyYKwErHjIpwgqq";
+const RC_ENTITLEMENT_ID = "unlimited";
+const RC_PRODUCT_IDS = { monthly: "com.suralink.app.monthly", annual: "com.suralink.app.annual" };
 
 /* ============================================================
    FONTS (loaded via link in index — for artifact preview we
@@ -2256,20 +2266,104 @@ export default function QuranUnderstandingApp() {
   // never limited — only starting something you've never attempted
   // before counts against the one-per-day free allowance.
   const [billing, setBilling] = useState(persisted.current.billing);
+  // Two independent sources of premium access — a redeemed creator
+  // code (sticky forever once granted, this app has no way to ever
+  // revoke it) and a real, verified RevenueCat subscription
+  // entitlement. Either alone is enough; a lapsed subscription must
+  // never take away something a creator code already granted, and
+  // vice versa isn't possible since codes never expire.
+  const isPremium = billing.creatorUnlocked || billing.subscriptionActive;
   // Which reciter's voice actually plays. Free accounts are always
   // pinned to the default (Alafasy) regardless of what's stored here —
   // enforced at read-time below, not just at the picker UI, so a
   // stale premium selection can never keep playing after a
   // subscription lapses.
   const [selectedReciterId, setSelectedReciterId] = useState(persisted.current.selectedReciterId);
-  const effectiveReciterId = billing.isPremium && selectedReciterId ? selectedReciterId : RECITERS[0].id;
+  const effectiveReciterId = isPremium && selectedReciterId ? selectedReciterId : RECITERS[0].id;
 
   function todayDateKey() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
   const usedNewChunksToday = billing.newChunksToday.date === todayDateKey() ? billing.newChunksToday.count : 0;
-  const canStartNewChunk = billing.isPremium || usedNewChunksToday < 1;
+  const canStartNewChunk = isPremium || usedNewChunksToday < 1;
+
+  // Real purchases (native iOS app only — never on the plain
+  // website, which has no App Store to buy through). Configures
+  // RevenueCat once, pulls the two real products with their real
+  // store-localized prices, and keeps `subscriptionActive` in sync
+  // with the ACTUAL entitlement RevenueCat reports — never just
+  // trusted from a button tap, so a cancelled/refunded subscription
+  // correctly loses access on its own.
+  const [rcProducts, setRcProducts] = useState(null); // { monthly, annual } | null while still loading
+  const [rcPurchasing, setRcPurchasing] = useState(false);
+  const [rcError, setRcError] = useState(null);
+
+  function applyCustomerInfo(customerInfo) {
+    const active = !!customerInfo?.entitlements?.active?.[RC_ENTITLEMENT_ID];
+    setBilling((b) => (b.subscriptionActive === active ? b : { ...b, subscriptionActive: active }));
+  }
+
+  React.useEffect(() => {
+    if (!isNativeApp()) return; // no App Store on the plain website — nothing to configure
+    let listenerId = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        await Purchases.configure({ apiKey: REVENUECAT_API_KEY_IOS });
+        const { customerInfo } = await Purchases.getCustomerInfo();
+        if (cancelled) return;
+        applyCustomerInfo(customerInfo);
+        const { products } = await Purchases.getProducts({
+          productIdentifiers: [RC_PRODUCT_IDS.monthly, RC_PRODUCT_IDS.annual],
+        });
+        if (cancelled) return;
+        const byId = {};
+        products.forEach((p) => { byId[p.identifier] = p; });
+        setRcProducts({ monthly: byId[RC_PRODUCT_IDS.monthly] || null, annual: byId[RC_PRODUCT_IDS.annual] || null });
+        listenerId = await Purchases.addCustomerInfoUpdateListener((info) => applyCustomerInfo(info));
+      } catch {
+        // Configure/network failure — creator codes still work fully
+        // offline; this only means no live store prices/purchases
+        // until it succeeds (e.g. tapping the paywall again later).
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (listenerId) Purchases.removeCustomerInfoUpdateListener({ callbackId: listenerId }).catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function purchasePlan(planKey) {
+    const product = rcProducts?.[planKey];
+    if (!product) return false;
+    setRcError(null);
+    setRcPurchasing(true);
+    try {
+      const { customerInfo } = await Purchases.purchaseStoreProduct({ product });
+      applyCustomerInfo(customerInfo);
+      return !!customerInfo?.entitlements?.active?.[RC_ENTITLEMENT_ID];
+    } catch (err) {
+      if (!err?.userCancelled) setRcError("That purchase didn't go through — try again, or restore purchases if you've already subscribed.");
+      return false;
+    } finally {
+      setRcPurchasing(false);
+    }
+  }
+
+  async function restorePurchases() {
+    setRcError(null);
+    setRcPurchasing(true);
+    try {
+      const { customerInfo } = await Purchases.restorePurchases();
+      applyCustomerInfo(customerInfo);
+    } catch {
+      setRcError("Couldn't restore purchases — check your connection and try again.");
+    } finally {
+      setRcPurchasing(false);
+    }
+  }
 
   function recordNewChunkStarted() {
     setBilling((b) => {
@@ -2325,7 +2419,7 @@ export default function QuranUnderstandingApp() {
       if (gap <= 0) return { ...p, lastActiveDate: today };
       if (gap === 1) return { ...p, streak: (p.streak || 0) + 1, lastActiveDate: today };
       // gap > 1: a day (or more) was fully missed.
-      if (billing.isPremium) return { ...p, lastActiveDate: today }; // protected — streak untouched
+      if (isPremium) return { ...p, lastActiveDate: today }; // protected — streak untouched
       return { ...p, streak: 1, lastActiveDate: today };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2544,7 +2638,7 @@ export default function QuranUnderstandingApp() {
                       const code = creatorCode.trim().toUpperCase();
                       if (!code) return;
                       if (CREATOR_CODES.has(code)) {
-                        setBilling((b) => ({ ...b, isPremium: true }));
+                        setBilling((b) => ({ ...b, creatorUnlocked: true }));
                         setCreatorCodeMsg({ ok: true, text: "Unlocked — you've got SuraLink Unlimited." });
                       } else {
                         setCreatorCodeMsg({ ok: false, text: "That code didn't match — check it and try again." });
@@ -2588,7 +2682,16 @@ export default function QuranUnderstandingApp() {
   }
 
   if (view === "paywall") {
-    return <PaywallScreen isPremium={billing.isPremium} onBack={goBack} onUpgrade={() => { setBilling((b) => ({ ...b, isPremium: true })); goBack(); }} />;
+    return <PaywallScreen
+      isPremium={isPremium}
+      products={rcProducts}
+      purchasing={rcPurchasing}
+      error={rcError}
+      isNative={isNativeApp()}
+      onBack={goBack}
+      onPurchase={async (planKey) => { const success = await purchasePlan(planKey); if (success) goBack(); }}
+      onRestore={restorePurchases}
+    />;
   }
 
   if (view === "memorizeSurahList") {
@@ -3131,14 +3234,14 @@ export default function QuranUnderstandingApp() {
           <div style={{ display: "flex", gap: 10, marginTop: 20, width: "100%" }}>
             <Stat label="Words familiar" value={wordsFamiliarCount} />
             <Stat label="Salah phrases" value={`${progress.salahDone.size}/${SALAH_MODULES.length}`} />
-            <Stat label="Streak" value={`${progress.streak}d${billing.isPremium ? " 🛡️" : ""}`} />
+            <Stat label="Streak" value={`${progress.streak}d${isPremium ? " 🛡️" : ""}`} />
           </div>
 
           <div style={{ width: "100%", marginTop: 24 }}>
             <div style={{ ...bodySans, fontSize: 12, color: T.textFaint, marginBottom: 10, letterSpacing: 0.3 }}>RECITER</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {ALL_RECITERS.map((r) => {
-                const isLocked = !billing.isPremium && !RECITERS.some((free) => free.id === r.id);
+                const isLocked = !isPremium && !RECITERS.some((free) => free.id === r.id);
                 const isSelected = effectiveReciterId === r.id;
                 return (
                   <button
@@ -3157,7 +3260,7 @@ export default function QuranUnderstandingApp() {
                 );
               })}
             </div>
-            {!billing.isPremium && (
+            {!isPremium && (
               <div style={{ ...bodySans, fontSize: 11, color: T.textFaint, marginTop: 8 }}>
                 More reciters are a SuraLink Unlimited perk.
               </div>
@@ -5160,13 +5263,19 @@ function MemorizeReviewScreen({ queue, onResult, onExit }) {
    metered here is purely this app's own feature: how many BRAND
    NEW chunks a free account can start memorizing per day. Reviewing
    anything already learned is never limited, and never shown here.
-   `onUpgrade` is a placeholder flip to isPremium for now — real
-   payment has to go through Apple's own In-App Purchase (StoreKit)
-   once this ships as a native app; App Store rules require that for
-   any digital-content purchase, a webview payment form isn't
-   allowed and wouldn't be trustworthy here anyway.
+   Real purchases go through Apple's own In-App Purchase (StoreKit),
+   via RevenueCat — App Store rules require that for any digital-
+   content purchase; a webview payment form isn't allowed and
+   wouldn't be trustworthy here anyway. `products` carries the real,
+   store-localized prices once RevenueCat's finished loading them
+   (null on the plain website, or briefly while the native app is
+   still fetching them) — the hardcoded fallback text below that
+   point is never what an actual purchase charges, just a reasonable
+   placeholder while real numbers are still loading.
    ============================================================ */
-function PaywallScreen({ isPremium, onBack, onUpgrade }) {
+function PaywallScreen({ isPremium, products, purchasing, error, isNative, onBack, onPurchase, onRestore }) {
+  const monthlyPrice = products?.monthly?.priceString || "$12.99/mo";
+  const annualPrice = products?.annual?.priceString || "$79.99/yr";
   return (
     <Screen>
       <FontLoader />
@@ -5197,9 +5306,34 @@ function PaywallScreen({ isPremium, onBack, onUpgrade }) {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 22 }}>
-          <PrimaryButton onClick={onUpgrade}>Upgrade to Unlimited</PrimaryButton>
-        </div>
+
+        {isNative ? (
+          <>
+            <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 10 }}>
+              <PrimaryButton disabled={purchasing} onClick={() => onPurchase("annual")}>
+                {purchasing ? "Processing…" : `Annual — ${annualPrice} (best value)`}
+              </PrimaryButton>
+              <GhostButton onClick={() => onPurchase("monthly")} style={{ opacity: purchasing ? 0.6 : 1 }}>
+                {purchasing ? "Processing…" : `Monthly — ${monthlyPrice}`}
+              </GhostButton>
+            </div>
+            {error && (
+              <div style={{ ...bodySans, fontSize: 12, color: T.danger, marginTop: 12 }}>{error}</div>
+            )}
+            <div style={{ marginTop: 14 }}>
+              <button
+                onClick={onRestore}
+                disabled={purchasing}
+                style={{ ...bodySans, fontSize: 12, color: T.textLo, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+              >Restore purchases</button>
+            </div>
+          </>
+        ) : (
+          <div style={{ marginTop: 22, ...bodySans, fontSize: 12.5, color: T.textFaint, lineHeight: 1.5 }}>
+            Subscribing is only available in the SuraLink app on your phone, not on the website.
+          </div>
+        )}
+
         <div style={{ marginTop: 12 }}>
           <GhostButton onClick={onBack}>Not right now</GhostButton>
         </div>

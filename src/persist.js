@@ -59,8 +59,16 @@ export function serializeAppState({ prefs, progress, memorization, currentSurah,
     // everyone, on both tiers) — this only limits how many BRAND NEW
     // chunks a free-tier user can start memorizing per calendar day.
     // Reviewing anything already learned is never limited.
+    // `creatorUnlocked` (a redeemed creator code) and `subscriptionActive`
+    // (a real, verified RevenueCat entitlement) are two independent
+    // sources of premium access — either one alone is enough, and a
+    // real subscription lapsing should never silently take away
+    // something a creator code already granted. The app derives the
+    // single "is this user premium" check from `creatorUnlocked ||
+    // subscriptionActive`, never from one alone.
     billing: {
-      isPremium: !!billing?.isPremium,
+      creatorUnlocked: !!billing?.creatorUnlocked,
+      subscriptionActive: !!billing?.subscriptionActive,
       newChunksToday: {
         date: typeof billing?.newChunksToday?.date === "string" ? billing.newChunksToday.date : null,
         count: Number.isFinite(billing?.newChunksToday?.count) ? billing.newChunksToday.count : 0,
@@ -102,7 +110,12 @@ export function deserializeAppState(raw) {
     currentAyahIdx: Number.isFinite(r.currentAyahIdx) ? r.currentAyahIdx : 0,
     onboarded: !!r.onboarded,
     billing: {
-      isPremium: !!r.billing?.isPremium,
+      // `isPremium` (no source distinction) was this field's shape
+      // before creator codes and real subscriptions became two
+      // separate things — treat any pre-existing true there as a
+      // grandfathered creatorUnlocked, never just silently drop it.
+      creatorUnlocked: !!r.billing?.creatorUnlocked || !!r.billing?.isPremium,
+      subscriptionActive: !!r.billing?.subscriptionActive,
       newChunksToday: {
         date: typeof r.billing?.newChunksToday?.date === "string" ? r.billing.newChunksToday.date : null,
         count: Number.isFinite(r.billing?.newChunksToday?.count) ? r.billing.newChunksToday.count : 0,
