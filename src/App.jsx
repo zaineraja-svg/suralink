@@ -127,10 +127,28 @@ function speakArabic(text, { rate = 0.8, onStart, onEnd, onError } = {}) {
    Quran recitation; text-to-speech is not an acceptable substitute
    for a real Qari's recitation.
    ============================================================ */
+// Always-available fallback chain — every one of these is tried, in
+// order, for any ayah, regardless of tier or selection, so playback
+// never just goes silent because a preferred reciter's clip for one
+// specific ayah happens to 404. Folder names verified directly
+// against everyayah.com's own reciter listing (recitations_pages.html),
+// never guessed.
 const RECITERS = [
   { id: "Alafasy_128kbps", label: "Mishary Rashid Alafasy" },
   { id: "Husary_128kbps", label: "Mahmoud Khalil Al-Husary" },
 ];
+// Additional reciters a premium account can pick as their PREFERRED
+// one (tried first, ahead of the RECITERS fallback chain above,
+// which still runs afterward as a safety net either way). Free
+// accounts always get RECITERS[0] (Alafasy) as their fixed default —
+// same real audio infrastructure, just no choice of voice.
+const PREMIUM_RECITERS = [
+  { id: "Abdul_Basit_Murattal_192kbps", label: "Abdul Basit Abdus Samad" },
+  { id: "Minshawy_Murattal_128kbps", label: "Mohamed Siddiq Al-Minshawi" },
+  { id: "Abdurrahmaan_As-Sudais_192kbps", label: "Abdur-Rahman As-Sudais" },
+  { id: "Saood_ash-Shuraym_128kbps", label: "Saud Ash-Shuraym" },
+];
+const ALL_RECITERS = [...RECITERS, ...PREMIUM_RECITERS];
 const sharedRecitationAudio = typeof Audio !== "undefined" ? new Audio() : null;
 let onRecitationEnd = null; // current listener, so switching clips resets prior UI state
 
@@ -146,22 +164,32 @@ function ayahAudioUrl(reciterId, surahId, ayahNum) {
 // reciter in RECITERS in turn. Reports state via callbacks so the
 // calling button can swap its icon; onError fires only once every
 // reciter has failed — at that point nothing plays.
-function playRecitation({ surahId, ayahNum, onStart, onDuration, onEnd, onError }) {
+// `preferredReciterId` (optional): tried first, ahead of the normal
+// RECITERS fallback chain, which still always runs afterward as a
+// safety net — a preferred reciter never having a clip for one
+// specific ayah should never mean silence, just a fallback voice
+// for that one ayah.
+function playRecitation({ surahId, ayahNum, preferredReciterId, onStart, onDuration, onEnd, onError }) {
   if (!sharedRecitationAudio) {
     onError && onError();
     return;
   }
   stopRecitation(); // clears any previous listener/playing state first
 
+  const preferred = preferredReciterId ? ALL_RECITERS.find((r) => r.id === preferredReciterId) : null;
+  const attemptOrder = preferred
+    ? [preferred, ...RECITERS.filter((r) => r.id !== preferred.id)]
+    : RECITERS;
+
   let reciterIdx = 0;
   const attempt = () => {
-    if (reciterIdx >= RECITERS.length) {
+    if (reciterIdx >= attemptOrder.length) {
       onRecitationEnd = null;
       onEnd && onEnd();
       onError && onError();
       return;
     }
-    const reciter = RECITERS[reciterIdx];
+    const reciter = attemptOrder[reciterIdx];
     sharedRecitationAudio.src = ayahAudioUrl(reciter.id, surahId, ayahNum);
 
     const finish = () => {
@@ -217,7 +245,7 @@ function stopRecitation() {
 // "listen a few times, then recall" step, where a chunk is 1-3
 // ayat. Returns a `cancel()` function so the caller (e.g. the user
 // tapping "stop" or leaving the screen) can interrupt mid-sequence.
-function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, onLoopStart, onAyahStart, onEnd, onError }) {
+function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, preferredReciterId, onLoopStart, onAyahStart, onEnd, onError }) {
   let cancelled = false;
   let loopsDone = 0;
 
@@ -241,7 +269,7 @@ function playRecitationRange({ surahId, ayahStart, ayahEnd, loops = 1, onLoopSta
       // failure flag, never advance, or this would skip an ayah.
       const thisAyah = ayahNum;
       playRecitation({
-        surahId, ayahNum,
+        surahId, ayahNum, preferredReciterId,
         onDuration: onAyahStart ? (duration) => onAyahStart(thisAyah, duration) : undefined,
         onEnd: () => { ayahNum += 1; playNextAyah(); },
         onError: () => { sawError = true; },
@@ -1500,7 +1528,7 @@ function computeWordTimeOffsets(weights, durationSec) {
 // can't be frame-perfect the way playChunkWordsLoop's exact per-
 // word timing is, but it keeps the natural, fluent recitation pace
 // intact, which is the whole point of offering it as "Normal".
-function playChunkContinuousWithEstimatedHighlight(chunk, translitWords, { loops = 1, onWordStart, onLoopStart, onEnd, onError } = {}) {
+function playChunkContinuousWithEstimatedHighlight(chunk, translitWords, { loops = 1, preferredReciterId, onWordStart, onLoopStart, onEnd, onError } = {}) {
   const wordCountByAyah = chunk.ayat.map((a) => a.ar.trim().split(/\s+/).length);
   const ayahWordOffset = [];
   { let acc = 0; for (const n of wordCountByAyah) { ayahWordOffset.push(acc); acc += n; } }
@@ -1510,7 +1538,7 @@ function playChunkContinuousWithEstimatedHighlight(chunk, translitWords, { loops
   const clearAll = () => { timeouts.forEach(clearTimeout); timeouts = []; };
 
   const cancelRecitation = playRecitationRange({
-    surahId: chunk.surahId, ayahStart: chunk.ayahStart, ayahEnd: chunk.ayahEnd, loops,
+    surahId: chunk.surahId, ayahStart: chunk.ayahStart, ayahEnd: chunk.ayahEnd, loops, preferredReciterId,
     onLoopStart: (n) => { clearAll(); onLoopStart && onLoopStart(n); },
     onAyahStart: (ayahNum, duration) => {
       const ayahIdx = ayahNum - chunk.ayahStart;
@@ -1696,6 +1724,14 @@ const SALAH_MODULES = [
    which chunk index the actual words-to-say start at, so the UI
    can point to it without ever hiding or trimming the real ayah.
    ============================================================ */
+// Creator/gifting codes for free SuraLink Unlimited access — checked
+// entirely client-side (this app has no backend/server to validate
+// against), so treat these as a lightweight gifting mechanic, not a
+// secret: anyone who inspects the shipped app bundle can read this
+// list. Fine for handing out to a known creator/friend; not a
+// substitute for real access control if abuse ever becomes an issue.
+const CREATOR_CODES = new Set(["SURALINK", "BARAKAH", "ZAINERAJA"]);
+
 const DUA_SITUATIONS = [
   { id: "hardship", icon: "😰", label: "Everything feels overwhelming", surahId: 94, ayahStart: 5, ayahEnd: 6 },
   { id: "envy", icon: "🧿", label: "You feel surrounded by envy or bad energy", surahId: 113, ayahStart: 1, ayahEnd: 5 },
@@ -1714,7 +1750,7 @@ const DUA_SITUATIONS = [
   { id: "badcompany", icon: "🐍", label: "Not sure who around you is really for you", surahId: 43, ayahStart: 67, ayahEnd: 67 },
 ];
 
-function DuaFinderScreen({ progress, onBack, onMemorize }) {
+function DuaFinderScreen({ progress, onBack, onMemorize, preferredReciterId }) {
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState(null);
   const [reciting, setReciting] = useState(false);
@@ -1737,12 +1773,12 @@ function DuaFinderScreen({ progress, onBack, onMemorize }) {
     setAudioError(false);
     if (active.ayahStart === active.ayahEnd) {
       playRecitation({
-        surahId: active.surahId, ayahNum: active.ayahStart,
+        surahId: active.surahId, ayahNum: active.ayahStart, preferredReciterId,
         onStart: () => setReciting(true), onEnd: () => setReciting(false), onError: () => setAudioError(true),
       });
     } else {
       playRecitationRange({
-        surahId: active.surahId, ayahStart: active.ayahStart, ayahEnd: active.ayahEnd, loops: 1,
+        surahId: active.surahId, ayahStart: active.ayahStart, ayahEnd: active.ayahEnd, loops: 1, preferredReciterId,
         onEnd: () => setReciting(false), onError: () => setAudioError(true),
       });
       setReciting(true);
@@ -2186,6 +2222,8 @@ export default function QuranUnderstandingApp() {
   const [view, setView] = useState(persisted.current.onboarded ? "home" : "onboarding");
   const [prevViews, setPrevViews] = useState([]);
   const [onboardStep, setOnboardStep] = useState(0);
+  const [creatorCode, setCreatorCode] = useState("");
+  const [creatorCodeMsg, setCreatorCodeMsg] = useState(null); // { ok: bool, text: string } | null
   const [prefs, setPrefs] = useState(persisted.current.prefs);
 
   const [progress, setProgress] = useState(persisted.current.progress);
@@ -2218,6 +2256,13 @@ export default function QuranUnderstandingApp() {
   // never limited — only starting something you've never attempted
   // before counts against the one-per-day free allowance.
   const [billing, setBilling] = useState(persisted.current.billing);
+  // Which reciter's voice actually plays. Free accounts are always
+  // pinned to the default (Alafasy) regardless of what's stored here —
+  // enforced at read-time below, not just at the picker UI, so a
+  // stale premium selection can never keep playing after a
+  // subscription lapses.
+  const [selectedReciterId, setSelectedReciterId] = useState(persisted.current.selectedReciterId);
+  const effectiveReciterId = billing.isPremium && selectedReciterId ? selectedReciterId : RECITERS[0].id;
 
   function todayDateKey() {
     const d = new Date();
@@ -2257,6 +2302,35 @@ export default function QuranUnderstandingApp() {
     goTo("memorizeLearn");
   }
 
+  // Streak: reconciled once per app load against the device's own
+  // local calendar date (never touched mid-session otherwise, so
+  // using the app across midnight doesn't double-count or flicker).
+  // Free accounts lose the streak on any fully-skipped day, same as
+  // before this existed at all (previously `streak` was just a
+  // static number that nothing ever actually incremented). Premium
+  // accounts never lose it to a missed day — "streak protection" is
+  // an always-on subscriber benefit, not a limited number of passes.
+  function daysBetweenDateKeys(a, b) {
+    const [ay, am, ad] = a.split("-").map(Number);
+    const [by, bm, bd] = b.split("-").map(Number);
+    const ms = Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad);
+    return Math.round(ms / (24 * 60 * 60 * 1000));
+  }
+  React.useEffect(() => {
+    const today = todayDateKey();
+    setProgress((p) => {
+      if (p.lastActiveDate === today) return p; // already reconciled today
+      if (!p.lastActiveDate) return { ...p, streak: Math.max(1, p.streak || 1), lastActiveDate: today };
+      const gap = daysBetweenDateKeys(p.lastActiveDate, today);
+      if (gap <= 0) return { ...p, lastActiveDate: today };
+      if (gap === 1) return { ...p, streak: (p.streak || 0) + 1, lastActiveDate: today };
+      // gap > 1: a day (or more) was fully missed.
+      if (billing.isPremium) return { ...p, lastActiveDate: today }; // protected — streak untouched
+      return { ...p, streak: 1, lastActiveDate: today };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function recordMemResult(itemId, result) {
     setMemorization((m) => {
       const item = m.items[itemId];
@@ -2282,7 +2356,7 @@ export default function QuranUnderstandingApp() {
   React.useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeAppState({
-        prefs, progress, memorization, currentSurah, currentAyahIdx, billing,
+        prefs, progress, memorization, currentSurah, currentAyahIdx, billing, selectedReciterId,
         onboarded: view !== "onboarding",
       })));
     } catch {
@@ -2306,7 +2380,7 @@ export default function QuranUnderstandingApp() {
     }
     setErroredAyahKey((cur) => (cur === key ? null : cur));
     playRecitation({
-      surahId, ayahNum,
+      surahId, ayahNum, preferredReciterId: effectiveReciterId,
       onStart: () => setPlayingAyahKey(key),
       onEnd: () => setPlayingAyahKey((cur) => (cur === key ? null : cur)),
       onError: () => setErroredAyahKey(key),
@@ -2449,6 +2523,41 @@ export default function QuranUnderstandingApp() {
               );
             })}
           </div>
+
+          {onboardStep === 0 && (
+            <div style={{ marginTop: 28 }}>
+              {creatorCodeMsg?.ok ? (
+                <div style={{ ...bodySans, fontSize: 12.5, color: T.tealSoft }}>✓ {creatorCodeMsg.text}</div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      value={creatorCode}
+                      onChange={(e) => { setCreatorCode(e.target.value); setCreatorCodeMsg(null); }}
+                      placeholder="Have a creator code?"
+                      style={{
+                        flex: 1, ...bodySans, fontSize: 13, padding: "10px 12px", borderRadius: 10,
+                        background: T.inkRaised, border: `1px solid ${T.inkLine}`, color: T.textHi, outline: "none",
+                      }}
+                    />
+                    <GhostButton onClick={() => {
+                      const code = creatorCode.trim().toUpperCase();
+                      if (!code) return;
+                      if (CREATOR_CODES.has(code)) {
+                        setBilling((b) => ({ ...b, isPremium: true }));
+                        setCreatorCodeMsg({ ok: true, text: "Unlocked — you've got SuraLink Unlimited." });
+                      } else {
+                        setCreatorCodeMsg({ ok: false, text: "That code didn't match — check it and try again." });
+                      }
+                    }}>Apply</GhostButton>
+                  </div>
+                  {creatorCodeMsg?.ok === false && (
+                    <div style={{ ...bodySans, fontSize: 11.5, color: T.danger, marginTop: 6 }}>{creatorCodeMsg.text}</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
         <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "20px 20px calc(20px + env(safe-area-inset-bottom))", background: `linear-gradient(0deg, ${T.ink} 60%, transparent)` }}>
           <PrimaryButton
@@ -2469,7 +2578,7 @@ export default function QuranUnderstandingApp() {
   }
 
   if (view === "duaFinder") {
-    return <DuaFinderScreen onBack={goBack} onMemorize={(situation) => {
+    return <DuaFinderScreen onBack={goBack} preferredReciterId={effectiveReciterId} onMemorize={(situation) => {
       const ayat = (AYAT[situation.surahId] || []).filter((a) => a.n >= situation.ayahStart && a.n <= situation.ayahEnd);
       if (!ayat.length) return;
       const chunk = { surahId: situation.surahId, ayahStart: situation.ayahStart, ayahEnd: situation.ayahEnd, ayat, text: ayat.map((a) => a.ar).join(" ") };
@@ -2498,6 +2607,7 @@ export default function QuranUnderstandingApp() {
       chunk={memorizeSource.chunk}
       priorSessionText={memorizeSessionChunks.join(" ")}
       defaultLoops={memorizeDefaultLoops}
+      preferredReciterId={effectiveReciterId}
       logAttempt={(itemId, result) => recordMemResult(itemId, result)}
       onChunkLearned={() => setMemorizeSessionChunks((s) => [...s, memorizeSource.chunk.text])}
       onExit={() => {
@@ -2929,7 +3039,7 @@ export default function QuranUnderstandingApp() {
       setMemorizeSessionChunks([]);
       startMemorizing(chunk);
     } : null;
-    return <LessonFlow key={keyId} ayah={ayah} title={title} subtitle={subtitle} audioRef={audioRef}
+    return <LessonFlow key={keyId} ayah={ayah} title={title} subtitle={subtitle} audioRef={audioRef} preferredReciterId={effectiveReciterId}
       onExit={goBack} onFinish={() => { onDone(); goBack(); }} onWordSeen={recordWordSeen} onMemorize={onMemorize} />;
   }
 
@@ -3021,8 +3131,39 @@ export default function QuranUnderstandingApp() {
           <div style={{ display: "flex", gap: 10, marginTop: 20, width: "100%" }}>
             <Stat label="Words familiar" value={wordsFamiliarCount} />
             <Stat label="Salah phrases" value={`${progress.salahDone.size}/${SALAH_MODULES.length}`} />
-            <Stat label="Streak" value={`${progress.streak}d`} />
+            <Stat label="Streak" value={`${progress.streak}d${billing.isPremium ? " 🛡️" : ""}`} />
           </div>
+
+          <div style={{ width: "100%", marginTop: 24 }}>
+            <div style={{ ...bodySans, fontSize: 12, color: T.textFaint, marginBottom: 10, letterSpacing: 0.3 }}>RECITER</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {ALL_RECITERS.map((r) => {
+                const isLocked = !billing.isPremium && !RECITERS.some((free) => free.id === r.id);
+                const isSelected = effectiveReciterId === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => (isLocked ? goTo("paywall") : setSelectedReciterId(r.id))}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "11px 14px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                      background: isSelected ? "rgba(201,164,92,0.12)" : T.inkRaised,
+                      border: `1px solid ${isSelected ? T.gold : T.inkLine}`,
+                    }}
+                  >
+                    <span style={{ ...bodySans, fontSize: 13.5, color: isLocked ? T.textFaint : T.textHi }}>{r.label}</span>
+                    {isLocked ? <span style={{ fontSize: 13 }}>🔒</span> : isSelected ? <span style={{ color: T.gold, fontSize: 14 }}>✓</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+            {!billing.isPremium && (
+              <div style={{ ...bodySans, fontSize: 11, color: T.textFaint, marginTop: 8 }}>
+                More reciters are a SuraLink Unlimited perk.
+              </div>
+            )}
+          </div>
+
           <div style={{ width: "100%", marginTop: 26 }}>
             <div style={{ ...bodySans, fontSize: 12, color: T.textFaint, marginBottom: 10, letterSpacing: 0.3 }}>SURAH PROGRESS</div>
             {ALL_SURAHS.filter((s) => AYAT[s.id]).map((s) => {
@@ -4010,7 +4151,7 @@ function QuizSession({ mode = "ayah", chunks, resolveChunkAudio, surahId, ayat, 
 /* ============================================================
    LESSON FLOW — the 8-step core learning loop
    ============================================================ */
-function LessonFlow({ ayah, title, subtitle, audioRef, onExit, onFinish, onWordSeen, onMemorize }) {
+function LessonFlow({ ayah, title, subtitle, audioRef, preferredReciterId, onExit, onFinish, onWordSeen, onMemorize }) {
   const [step, setStep] = useState(0); // 0 hear/discover, 1 practice (quiz), 2 understand, 3 hear again/check, 4 connect
   const [revealed, setRevealed] = useState(new Set());
   const [reciting, setReciting] = useState(false);
@@ -4063,6 +4204,7 @@ function LessonFlow({ ayah, title, subtitle, audioRef, onExit, onFinish, onWordS
       playRecitation({
         surahId: audioRef.surahId,
         ayahNum: audioRef.ayahNum,
+        preferredReciterId,
         onStart: (reciter) => { setReciting(true); setActiveReciter(reciter); },
         onEnd: () => setReciting(false),
         onError: () => setAudioError(true),
@@ -4665,7 +4807,7 @@ function RecallResultWords({ result }) {
    prior chunk from this session together, before the chunk is
    marked learned and enters the spaced-repetition queue.
    ============================================================ */
-function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLearned, onExit, logAttempt }) {
+function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, preferredReciterId, onChunkLearned, onExit, logAttempt }) {
   const [phase, setPhase] = useState("translation"); // translation -> listen -> recall -> isolateReplay -> chainRecall -> done
   const [loopsTarget, setLoopsTarget] = useState(defaultLoops);
   const [loopsCompleted, setLoopsCompleted] = useState(0);
@@ -4709,7 +4851,7 @@ function MemorizeLearnScreen({ chunk, priorSessionText, defaultLoops, onChunkLea
           onError: () => { setPlayingLoops(false); setAudioError(true); setActiveWordIdx(null); },
         })
       : playChunkContinuousWithEstimatedHighlight(chunk, chunkTranslitWords, {
-          loops: loopsTarget,
+          loops: loopsTarget, preferredReciterId,
           onWordStart: (i) => setActiveWordIdx(i),
           onLoopStart: (n) => setLoopsCompleted(n - 1),
           onEnd: () => { setLoopsCompleted(loopsTarget); setPlayingLoops(false); setActiveWordIdx(null); },
@@ -5042,8 +5184,13 @@ function PaywallScreen({ isPremium, onBack, onUpgrade }) {
           background: `linear-gradient(150deg, rgba(201,164,92,0.14), rgba(46,125,83,0.08))`,
           border: `1px solid rgba(201,164,92,0.4)`,
         }}>
-          <div style={{ ...displaySerif, fontSize: 17, color: T.gold, marginBottom: 10 }}>Unlimited Memorization</div>
-          {["Start as many new chunks a day as you want", "Everything free users get, with no daily cap", "Real recitation audio, same as always"].map((line) => (
+          <div style={{ ...displaySerif, fontSize: 17, color: T.gold, marginBottom: 10 }}>SuraLink Unlimited</div>
+          {[
+            "Start as many new memorization chunks a day as you want",
+            "Choose your reciter — Abdul Basit, Al-Minshawi, As-Sudais, Ash-Shuraym",
+            "Never lose your streak to a missed day",
+            "Offline listening — no signal needed",
+          ].map((line) => (
             <div key={line} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
               <span style={{ color: T.gold, marginTop: 1 }}>✦</span>
               <span style={{ ...bodySans, fontSize: 13, color: T.textHi }}>{line}</span>

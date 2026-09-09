@@ -20,6 +20,7 @@ const EMPTY_PROGRESS = {
   surahsCompleted: new Set(),
   words: {},
   streak: 0,
+  lastActiveDate: null,
   salahDone: new Set(),
   bookmarks: new Set(),
 };
@@ -32,7 +33,7 @@ function toSet(maybeArray) {
 }
 
 /** Live app state -> plain JSON-safe object. */
-export function serializeAppState({ prefs, progress, memorization, currentSurah, currentAyahIdx, onboarded, billing }) {
+export function serializeAppState({ prefs, progress, memorization, currentSurah, currentAyahIdx, onboarded, billing, selectedReciterId }) {
   return {
     v: STATE_VERSION,
     savedAt: Date.now(),
@@ -43,6 +44,7 @@ export function serializeAppState({ prefs, progress, memorization, currentSurah,
       surahsCompleted: toArray(progress?.surahsCompleted),
       words: progress?.words && typeof progress.words === "object" ? progress.words : {},
       streak: Number.isFinite(progress?.streak) ? progress.streak : 0,
+      lastActiveDate: typeof progress?.lastActiveDate === "string" ? progress.lastActiveDate : null,
       salahDone: toArray(progress?.salahDone),
       bookmarks: toArray(progress?.bookmarks),
     },
@@ -64,6 +66,7 @@ export function serializeAppState({ prefs, progress, memorization, currentSurah,
         count: Number.isFinite(billing?.newChunksToday?.count) ? billing.newChunksToday.count : 0,
       },
     },
+    selectedReciterId: typeof selectedReciterId === "string" ? selectedReciterId : null,
   };
 }
 
@@ -87,6 +90,7 @@ export function deserializeAppState(raw) {
       surahsCompleted: toSet(p.surahsCompleted),
       words: p.words && typeof p.words === "object" ? p.words : {},
       streak: Number.isFinite(p.streak) ? p.streak : EMPTY_PROGRESS.streak,
+      lastActiveDate: typeof p.lastActiveDate === "string" ? p.lastActiveDate : null,
       salahDone: toSet(p.salahDone),
       bookmarks: toSet(p.bookmarks),
     },
@@ -104,5 +108,6 @@ export function deserializeAppState(raw) {
         count: Number.isFinite(r.billing?.newChunksToday?.count) ? r.billing.newChunksToday.count : 0,
       },
     },
+    selectedReciterId: typeof r.selectedReciterId === "string" ? r.selectedReciterId : null,
   };
 }
