@@ -2657,8 +2657,15 @@ export default function QuranUnderstandingApp() {
           <PrimaryButton
             disabled={!prefs[step.key]}
             onClick={() => {
-              if (onboardStep < steps.length - 1) setOnboardStep((s) => s + 1);
-              else setView("home");
+              if (onboardStep < steps.length - 1) { setOnboardStep((s) => s + 1); return; }
+              // Show the paywall once, immediately after onboarding,
+              // before the person has even seen the free features —
+              // skippable ("Not right now" on that screen), but seen
+              // by everyone at least once. "home" goes on the history
+              // stack first so the paywall's own back arrow lands
+              // there, not back into onboarding.
+              setPrevViews((p) => [...p, "home"]);
+              setView(isPremium ? "home" : "paywall");
             }}
           >{onboardStep < steps.length - 1 ? "Continue" : "Begin"}</PrimaryButton>
         </div>
@@ -2745,6 +2752,25 @@ export default function QuranUnderstandingApp() {
             </div>
             <Pill tone="gold">🔥 {progress.streak}d</Pill>
           </div>
+
+          {/* Always-visible upgrade entry point for free accounts —
+              not gated behind hitting a limit first, so upgrading is
+              one tap away at any time, from the very first time
+              someone opens the app. */}
+          {!isPremium && (
+            <div
+              onClick={() => goTo("paywall")}
+              style={{
+                marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 14px", borderRadius: 12, cursor: "pointer",
+                background: `linear-gradient(90deg, rgba(201,164,92,0.16), rgba(201,164,92,0.06))`,
+                border: `1px solid rgba(201,164,92,0.35)`,
+              }}
+            >
+              <span style={{ ...bodySans, fontSize: 12.5, color: T.gold, fontWeight: 600 }}>✦ Upgrade to SuraLink Unlimited</span>
+              <span style={{ color: T.gold, fontSize: 14 }}>→</span>
+            </div>
+          )}
 
           {/* Continue card */}
           <div
@@ -5279,14 +5305,14 @@ function PaywallScreen({ isPremium, products, purchasing, error, isNative, onBac
   return (
     <Screen>
       <FontLoader />
-      <TopBar title="Memorize the Quran" onBack={onBack} />
+      <TopBar title="SuraLink Unlimited" onBack={onBack} />
       <div style={{ padding: "0 20px", textAlign: "center" }}>
         <div style={{ marginTop: 30, fontSize: 40 }}>🧠</div>
         <div style={{ ...displaySerif, fontSize: 22, color: T.textHi, marginTop: 12 }}>
-          You've used today's free chunk
+          Go further with SuraLink
         </div>
         <p style={{ ...bodySans, fontSize: 13.5, color: T.textLo, lineHeight: 1.6, margin: "10px 0 0" }}>
-          The free plan lets you start one brand-new chunk of memorization every day. Reviewing what you've already learned is always unlimited — this only covers starting something new.
+          The free plan lets you start one brand-new chunk of memorization every day — reviewing what you've already learned is always unlimited, no matter what. Unlimited removes that daily cap entirely, plus a few other things.
         </p>
         <div style={{
           marginTop: 26, padding: 20, borderRadius: 16, textAlign: "left",
@@ -5335,7 +5361,10 @@ function PaywallScreen({ isPremium, products, purchasing, error, isNative, onBac
         )}
 
         <div style={{ marginTop: 12 }}>
-          <GhostButton onClick={onBack}>Not right now</GhostButton>
+          <button
+            onClick={onBack}
+            style={{ ...bodySans, fontSize: 12, color: T.textFaint, background: "none", border: "none", cursor: "pointer" }}
+          >Continue for free</button>
         </div>
         <div style={{ ...bodySans, fontSize: 10.5, color: T.textFaint, marginTop: 18, lineHeight: 1.5 }}>
           Come back tomorrow for another free chunk, no purchase needed.
