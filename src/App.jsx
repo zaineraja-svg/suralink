@@ -9,6 +9,15 @@ import {
 import { matchRecall, extractBrokenPhrase } from "./recallMatch.js";
 import { transliterate, transliterateWords } from "./transliterate.js";
 import { serializeAppState, deserializeAppState, STORAGE_KEY } from "./persist.js";
+// Capacitor is a no-op on the plain web (isNativePlatform() just
+// returns false) — safe to import unconditionally. It's only
+// actually exercised once this app is wrapped and run as the real
+// iOS build, where the browser's SpeechRecognition API doesn't
+// exist at all (a WebKit/iOS limitation, not something fixable
+// from this app's own code) and this native plugin is the real
+// substitute.
+import { Capacitor } from "@capacitor/core";
+import { SpeechRecognition as NativeSpeechRecognition } from "@capacitor-community/speech-recognition";
 
 /* ============================================================
    FONTS (loaded via link in index — for artifact preview we
@@ -2192,6 +2201,54 @@ export default function QuranUnderstandingApp() {
     return fresh;
   }
 
+  // Billing: NOT a gate on the recitation audio itself (that stays
+  // free for every user, free or paid tier alike — the audio's own
+  // license is non-commercial, so it's never the thing being sold).
+  // What's actually metered is a free account's daily allowance of
+  // BRAND NEW chunks started into memorization. Reviewing anything
+  // already learned, or continuing a chunk already in progress, is
+  // never limited — only starting something you've never attempted
+  // before counts against the one-per-day free allowance.
+  const [billing, setBilling] = useState(persisted.current.billing);
+
+  function todayDateKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  const usedNewChunksToday = billing.newChunksToday.date === todayDateKey() ? billing.newChunksToday.count : 0;
+  const canStartNewChunk = billing.isPremium || usedNewChunksToday < 1;
+
+  function recordNewChunkStarted() {
+    setBilling((b) => {
+      const today = todayDateKey();
+      const priorCount = b.newChunksToday.date === today ? b.newChunksToday.count : 0;
+      return { ...b, newChunksToday: { date: today, count: priorCount + 1 } };
+    });
+  }
+
+  // Single entry point for every "start memorizing this chunk"
+  // action in the app (the chunk-list picker, "Memorize this ayah
+  // now" from a lesson, and "Memorize this" from the dua finder) —
+  // so the free-tier daily limit can never be bypassed by going in
+  // through a different door than the one that was actually checked.
+  function startMemorizing(chunk) {
+    const id = `${chunk.surahId}:${chunk.ayahStart}-${chunk.ayahEnd}`;
+    // Brand-new means this exact item has never been created before —
+    // NOT based on its status. A chunk that was opened once and
+    // abandoned before ever attempting recall is still status "new",
+    // but it's already been "started" for billing purposes, so
+    // re-entering it must never trigger the paywall a second time.
+    const isBrandNew = !memorization.items[id];
+    if (isBrandNew && !canStartNewChunk) {
+      goTo("paywall");
+      return;
+    }
+    const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
+    if (isBrandNew) recordNewChunkStarted();
+    setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
+    goTo("memorizeLearn");
+  }
+
   function recordMemResult(itemId, result) {
     setMemorization((m) => {
       const item = m.items[itemId];
@@ -2217,7 +2274,7 @@ export default function QuranUnderstandingApp() {
   React.useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeAppState({
-        prefs, progress, memorization, currentSurah, currentAyahIdx,
+        prefs, progress, memorization, currentSurah, currentAyahIdx, billing,
         onboarded: view !== "onboarding",
       })));
     } catch {
@@ -2408,11 +2465,13 @@ export default function QuranUnderstandingApp() {
       const ayat = (AYAT[situation.surahId] || []).filter((a) => a.n >= situation.ayahStart && a.n <= situation.ayahEnd);
       if (!ayat.length) return;
       const chunk = { surahId: situation.surahId, ayahStart: situation.ayahStart, ayahEnd: situation.ayahEnd, ayat, text: ayat.map((a) => a.ar).join(" ") };
-      const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
       setMemorizeSessionChunks([]);
-      setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
-      goTo("memorizeLearn");
+      startMemorizing(chunk);
     }} />;
+  }
+
+  if (view === "paywall") {
+    return <PaywallScreen isPremium={billing.isPremium} onBack={goBack} onUpgrade={() => { setBilling((b) => ({ ...b, isPremium: true })); goBack(); }} />;
   }
 
   if (view === "memorizeSurahList") {
@@ -2422,11 +2481,7 @@ export default function QuranUnderstandingApp() {
 
   if (view === "memorizeChunkList") {
     return <MemorizeChunkListScreen surahId={memorizeSource.surahId} items={memorization.items} now={Date.now()} onBack={goBack}
-      onPickChunk={(chunk) => {
-        const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
-        setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
-        goTo("memorizeLearn");
-      }} />;
+      onPickChunk={(chunk) => startMemorizing(chunk)} />;
   }
 
   if (view === "memorizeLearn") {
@@ -2863,10 +2918,8 @@ export default function QuranUnderstandingApp() {
     }
     const onMemorize = audioRef ? () => {
       const chunk = { surahId: audioRef.surahId, ayahStart: ayah.n, ayahEnd: ayah.n, ayat: [ayah], text: ayah.ar };
-      const item = getOrCreateMemItem(chunk.surahId, chunk.ayahStart, chunk.ayahEnd);
       setMemorizeSessionChunks([]);
-      setMemorizeSource({ surahId: chunk.surahId, chunk: { ...chunk, __itemId: item.id } });
-      goTo("memorizeLearn");
+      startMemorizing(chunk);
     } : null;
     return <LessonFlow key={keyId} ayah={ayah} title={title} subtitle={subtitle} audioRef={audioRef}
       onExit={goBack} onFinish={() => { onDone(); goBack(); }} onWordSeen={recordWordSeen} onMemorize={onMemorize} />;
@@ -4257,8 +4310,21 @@ function StepLabel({ n, text, style }) {
    and some Android browsers), so this always offers typed recall
    as a real, equally-functional fallback, not just an error state.
    ============================================================ */
-function speechRecognitionSupported() {
+// Whether the BROWSER's own SpeechRecognition API exists. This is
+// never true inside the native iOS build's webview — WebKit has
+// never implemented it there — which is exactly why the native
+// branch below exists as the real substitute for that platform.
+function browserSpeechRecognitionSupported() {
   return typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+// True only once actually running as the wrapped native app (never
+// on the plain website, where this is always false and every call
+// below is skipped in favor of the browser API).
+function isNativeApp() {
+  try { return Capacitor.isNativePlatform(); } catch { return false; }
+}
+function speechRecognitionSupported() {
+  return isNativeApp() || browserSpeechRecognitionSupported();
 }
 
 // A rough visual placeholder for an unspoken word — a run of tatweel
@@ -4324,8 +4390,17 @@ function RecallInput({ expectedText, onResult }) {
   const [finalHeard, setFinalHeard] = useState("");   // confirmed-final chunks, accumulated
   const [interimHeard, setInterimHeard] = useState(""); // current in-progress guess, replaced each event
   const recognitionRef = React.useRef(null);
+  const nativeMatchesRef = React.useRef([]); // latest partialResults matches from the native plugin
+  const nativeListenerRef = React.useRef(null);
+  const native = useMemo(() => isNativeApp(), []);
 
-  React.useEffect(() => () => { recognitionRef.current?.stop(); }, []);
+  React.useEffect(() => () => {
+    recognitionRef.current?.stop();
+    if (native) {
+      NativeSpeechRecognition.stop().catch(() => {});
+      NativeSpeechRecognition.removeAllListeners().catch(() => {});
+    }
+  }, [native]);
 
   const liveHeard = (finalHeard + " " + interimHeard).trim();
   const expectedWords = useMemo(() => expectedText.trim().split(/\s+/), [expectedText]);
@@ -4350,7 +4425,64 @@ function RecallInput({ expectedText, onResult }) {
     setInterimHeard("");
   }
 
+  // Native path (the real iOS app build): the browser's
+  // SpeechRecognition API doesn't exist inside that webview at
+  // all, so this goes through @capacitor-community/speech-
+  // recognition instead, which bridges to iOS's own on-device
+  // speech recognizer. Same end result — live partial text feeds
+  // the same QuranPageReveal component, and finishWith() does the
+  // same real scoring either way — just a different source feeding it.
+  async function startListeningNative() {
+    setSpeechError(null);
+    setFinalHeard("");
+    setInterimHeard("");
+    nativeMatchesRef.current = [];
+    try {
+      let perm = await NativeSpeechRecognition.checkPermissions();
+      if (perm.speechRecognition !== "granted") {
+        perm = await NativeSpeechRecognition.requestPermissions();
+      }
+      if (perm.speechRecognition !== "granted") {
+        setSpeechError("Microphone/speech access was denied — allow it in your device's Settings, or type instead.");
+        return;
+      }
+      nativeListenerRef.current = await NativeSpeechRecognition.addListener("partialResults", (data) => {
+        const matches = data?.matches || [];
+        nativeMatchesRef.current = matches;
+        setInterimHeard(matches[0] || "");
+      });
+      setListening(true);
+      // partialResults:true makes this resolve right away (results
+      // stream through the listener above instead), matching the
+      // browser path's "live as you go" feel rather than waiting
+      // silently for one final blob of text.
+      await NativeSpeechRecognition.start({ language: "ar-SA", partialResults: true, popup: false, maxResults: 5 });
+    } catch {
+      setListening(false);
+      setSpeechError("Couldn't start the microphone — try again, or type instead.");
+    }
+  }
+
+  async function stopListeningNative() {
+    try { await NativeSpeechRecognition.stop(); } catch {}
+    try { await nativeListenerRef.current?.remove(); } catch {}
+    const matches = nativeMatchesRef.current || [];
+    // Same "which alternative actually matches the real ayah"
+    // scoring trick used on the browser path, applied to whatever
+    // the native recognizer's own ranked alternatives were.
+    let best = matches[0] || "";
+    if (matches.length > 1) {
+      let bestScore = -1;
+      for (const m of matches) {
+        const acc = matchRecall(expectedText, m).accuracy;
+        if (acc > bestScore) { bestScore = acc; best = m; }
+      }
+    }
+    finishWith(best);
+  }
+
   function startListening() {
+    if (native) { startListeningNative(); return; }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setMode("text"); return; }
     setSpeechError(null);
@@ -4421,6 +4553,7 @@ function RecallInput({ expectedText, onResult }) {
     try { rec.start(); } catch { setListening(false); }
   }
   function stopListening() {
+    if (native) { stopListeningNative(); return; }
     recognitionRef.current?.stop(); // triggers onend, which finalizes with whatever's been heard so far
   }
   function submitTyped() {
@@ -4864,6 +4997,60 @@ function MemorizeReviewScreen({ queue, onResult, onExit }) {
             </div>
           </>
         )}
+      </div>
+    </Screen>
+  );
+}
+
+/* ============================================================
+   PAYWALL — free tier hits its daily new-chunk limit
+   Deliberately NOT a gate on the recitation audio itself (every
+   source that audio comes from licenses it for free, non-commercial
+   use only — see the app's audio-source comments above). What's
+   metered here is purely this app's own feature: how many BRAND
+   NEW chunks a free account can start memorizing per day. Reviewing
+   anything already learned is never limited, and never shown here.
+   `onUpgrade` is a placeholder flip to isPremium for now — real
+   payment has to go through Apple's own In-App Purchase (StoreKit)
+   once this ships as a native app; App Store rules require that for
+   any digital-content purchase, a webview payment form isn't
+   allowed and wouldn't be trustworthy here anyway.
+   ============================================================ */
+function PaywallScreen({ isPremium, onBack, onUpgrade }) {
+  return (
+    <Screen>
+      <FontLoader />
+      <TopBar title="Memorize the Quran" onBack={onBack} />
+      <div style={{ padding: "0 20px", textAlign: "center" }}>
+        <div style={{ marginTop: 30, fontSize: 40 }}>🧠</div>
+        <div style={{ ...displaySerif, fontSize: 22, color: T.textHi, marginTop: 12 }}>
+          You've used today's free chunk
+        </div>
+        <p style={{ ...bodySans, fontSize: 13.5, color: T.textLo, lineHeight: 1.6, margin: "10px 0 0" }}>
+          The free plan lets you start one brand-new chunk of memorization every day. Reviewing what you've already learned is always unlimited — this only covers starting something new.
+        </p>
+        <div style={{
+          marginTop: 26, padding: 20, borderRadius: 16, textAlign: "left",
+          background: `linear-gradient(150deg, rgba(201,164,92,0.14), rgba(46,125,83,0.08))`,
+          border: `1px solid rgba(201,164,92,0.4)`,
+        }}>
+          <div style={{ ...displaySerif, fontSize: 17, color: T.gold, marginBottom: 10 }}>Unlimited Memorization</div>
+          {["Start as many new chunks a day as you want", "Everything free users get, with no daily cap", "Real recitation audio, same as always"].map((line) => (
+            <div key={line} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+              <span style={{ color: T.gold, marginTop: 1 }}>✦</span>
+              <span style={{ ...bodySans, fontSize: 13, color: T.textHi }}>{line}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 22 }}>
+          <PrimaryButton onClick={onUpgrade}>Upgrade to Unlimited</PrimaryButton>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <GhostButton onClick={onBack}>Not right now</GhostButton>
+        </div>
+        <div style={{ ...bodySans, fontSize: 10.5, color: T.textFaint, marginTop: 18, lineHeight: 1.5 }}>
+          Come back tomorrow for another free chunk, no purchase needed.
+        </div>
       </div>
     </Screen>
   );

@@ -32,7 +32,7 @@ function toSet(maybeArray) {
 }
 
 /** Live app state -> plain JSON-safe object. */
-export function serializeAppState({ prefs, progress, memorization, currentSurah, currentAyahIdx, onboarded }) {
+export function serializeAppState({ prefs, progress, memorization, currentSurah, currentAyahIdx, onboarded, billing }) {
   return {
     v: STATE_VERSION,
     savedAt: Date.now(),
@@ -53,6 +53,17 @@ export function serializeAppState({ prefs, progress, memorization, currentSurah,
     currentSurah: Number.isFinite(currentSurah) ? currentSurah : 1,
     currentAyahIdx: Number.isFinite(currentAyahIdx) ? currentAyahIdx : 0,
     onboarded: !!onboarded,
+    // Not a licensing gate on the audio itself (that stays free for
+    // everyone, on both tiers) — this only limits how many BRAND NEW
+    // chunks a free-tier user can start memorizing per calendar day.
+    // Reviewing anything already learned is never limited.
+    billing: {
+      isPremium: !!billing?.isPremium,
+      newChunksToday: {
+        date: typeof billing?.newChunksToday?.date === "string" ? billing.newChunksToday.date : null,
+        count: Number.isFinite(billing?.newChunksToday?.count) ? billing.newChunksToday.count : 0,
+      },
+    },
   };
 }
 
@@ -86,5 +97,12 @@ export function deserializeAppState(raw) {
     currentSurah: Number.isFinite(r.currentSurah) ? r.currentSurah : 1,
     currentAyahIdx: Number.isFinite(r.currentAyahIdx) ? r.currentAyahIdx : 0,
     onboarded: !!r.onboarded,
+    billing: {
+      isPremium: !!r.billing?.isPremium,
+      newChunksToday: {
+        date: typeof r.billing?.newChunksToday?.date === "string" ? r.billing.newChunksToday.date : null,
+        count: Number.isFinite(r.billing?.newChunksToday?.count) ? r.billing.newChunksToday.count : 0,
+      },
+    },
   };
 }

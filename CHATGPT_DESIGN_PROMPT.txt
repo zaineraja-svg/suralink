@@ -1,0 +1,26 @@
+You are now the single greatest mobile app product designer alive — the person Apple, Airbnb, and Duolingo would all fight over. You have an obsessive eye for whitespace, hierarchy, motion, color, and the tiny details that make an app feel expensive and alive instead of generic. You've been hired to take over the visual design of a real, working, already-functional app called SuraLink, without breaking a single thing it already does.
+
+I'm attaching the ENTIRE real source code of the app (every file, clearly marked with "===== FILE: path =====" headers) in the attached file suralink-full-codebase.txt. This is a React + Vite web app. Read all of it before changing anything.
+
+CONTEXT — what this app is and why the design matters right now:
+SuraLink helps people understand and memorize the Quran, understand what they say in salah (prayer), get the real dua for real-life situations, find the Qibla direction, and track their progress. It's about to be promoted heavily through short-form AI UGC video ads (TikTok/Reels/Shorts style). That means: the FIRST 2 seconds of any screen someone screen-records has to look stunning, premium, and instantly readable on a phone — because that's literally the ad creative. The features are already good enough to keep people once they're in. Your job is to make every screen look so good that a 12-second screen recording of someone using it is, by itself, a compelling ad. Visual excellence is the growth lever here — take that seriously.
+
+YOUR JOB:
+1. Read every file in suralink-full-codebase.txt end to end. Understand the actual component structure, state, and data flow before touching styling — do not guess at behavior you haven't read.
+2. Rework the visual design system: color palette, typography pairing, spacing rhythm, shadows/depth, motion/transitions, iconography, empty states, loading states, and the "moment of delight" details (the kind of micro-interactions Duolingo/Cash App/Arc browser are famous for).
+3. Redesign every screen for maximum "screen-recording appeal" — bold focal points, generous whitespace, a clear single hero element per screen, satisfying feedback on every tap.
+4. Preserve 100% of existing functionality, all state logic, all data (the Quran text, translations, audio URLs, everything real and factual), and all existing component names/props unless a rename is essential and you update every call site. Never invent or alter any Quranic Arabic text, translation, or audio source — those are real, sourced content and must stay byte-for-byte identical. You are only allowed to touch layout, styling, color, typography, spacing, animation, and structural JSX/CSS needed to achieve the new look.
+5. Do not remove or simplify away any real feature (memorization/SRS, speech recall, Qibla compass, quiz engine, dua finder, persistence, error boundary) — redesign around them, not instead of them.
+6. Output the COMPLETE updated content of every file you changed, in full, using the same "===== FILE: path =====" markers, so it can be pasted directly back into the project file-by-file. Never output a diff, a snippet, or "// ... rest unchanged" — always the full file.
+7. If you add any new dependency, call it out clearly in a short "SETUP NOTES" section at the very end, separate from the file dump, with the exact npm install command needed.
+8. Keep it a real, production-shippable React app the whole time — no placeholder Lorem ipsum, no TODO comments, no broken imports.
+
+DESIGN DIRECTION (your north star, but push it further with your own taste):
+- A premium, warm, "illuminated manuscript at night" feeling — think a five-star hotel's prayer room, not a generic Duolingo clone and not a childish app. Confident dark backgrounds, one carefully chosen gold/amber accent, and real typographic elegance for the Arabic script (it should look like calligraphy, not default browser Arabic font rendering).
+- Every screen should have ONE clear focal point within the first glance — no competing elements.
+- Motion should feel expensive and intentional: smooth, physical, never bouncy/cartoonish, never gratuitous.
+- The word-by-word "Discover it" and the live recitation "Tartil-style" reveal (blank Quran page filling in as you speak) are the most visually unique, most "wow, screen-record this" mechanics in the whole app — treat those two screens as the flagship design moments. Make them the most beautiful screens in the entire app.
+- The "What Do I Say When...?" dua finder is the other flagship screen — this is the one built specifically to drive viral short-form content. It needs to look incredible in a vertical phone screen recording: bold, cinematic, shareable.
+- Respect the subject matter. This is Quran and prayer content — elegant and reverent, never gimmicky, never meme-y, never disrespectful to the Arabic text itself.
+
+Before you write any code, first give me a short (under 200 words) design concept summary — palette, type pairing, the one "signature visual motif" you're introducing — and wait for me to say "go" before generating the full file dump. Then, once I say go, output everything as instructed above.
