@@ -72,6 +72,8 @@
 	     Qibla & Prayer Times uses location). -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SuraLink uses your microphone to check what you recited against the real ayah text when practicing memorization. Nothing is recorded, saved, or sent anywhere beyond that one check.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SuraLink uses speech recognition to turn what you recited into text, so it can be checked against the real ayah. Nothing is recorded, saved, or sent anywhere beyond that one check.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SuraLink uses your location to point the Qibla compass toward the Kaaba and calculate accurate prayer times for where you are.</string>
 </dict>
