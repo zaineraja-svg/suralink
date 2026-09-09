@@ -1730,7 +1730,7 @@ const SALAH_MODULES = [
 // secret: anyone who inspects the shipped app bundle can read this
 // list. Fine for handing out to a known creator/friend; not a
 // substitute for real access control if abuse ever becomes an issue.
-const CREATOR_CODES = new Set(["SURALINK", "BARAKAH", "ZAINERAJA"]);
+const CREATOR_CODES = new Set(["NOOR786", "FAJR143", "ZAINERAJA"]);
 
 const DUA_SITUATIONS = [
   { id: "hardship", icon: "😰", label: "Everything feels overwhelming", surahId: 94, ayahStart: 5, ayahEnd: 6 },
